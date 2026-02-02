@@ -1,1 +1,0 @@
-/usr/bin/g++ -g CMakeFiles/tests.dir/tests/dummy.cpp.o -o tests  libfil_rouge_core.a lib/libgtest_main.a lib/libgtest.a 
