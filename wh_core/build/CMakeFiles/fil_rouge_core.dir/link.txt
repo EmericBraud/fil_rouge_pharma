@@ -1,0 +1,2 @@
+/usr/bin/ar qc libfil_rouge_core.a CMakeFiles/fil_rouge_core.dir/src/dummy.cpp.o
+/usr/bin/ranlib libfil_rouge_core.a

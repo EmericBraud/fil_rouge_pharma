@@ -1,0 +1,1 @@
+/usr/bin/g++ -g -O3 -flto -march=native CMakeFiles/fil_rouge.dir/src/main.cpp.o -o fil_rouge  libfil_rouge_core.a -lsfml-graphics -lsfml-window -lsfml-system 
