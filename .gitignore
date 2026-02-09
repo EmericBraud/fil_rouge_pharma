@@ -6,3 +6,10 @@
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.cache

@@ -25,7 +25,7 @@ class RecuitSimuleAgent(Agent):
         self.alpha = alpha
         self.collaboratif = collaboratif
 
-        self.order = Generator.generate_medicaments(len(self.model.medicaments))
+        self.order = self.model.medicaments
         # self.makespan = compute_makespan(self.model.medicaments, self.order)
         self.makespan = random.random()
 
