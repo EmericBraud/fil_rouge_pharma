@@ -25,11 +25,4 @@ PYBIND11_MODULE(fil_rouge_py, m)
     py::class_<Scorer>(m, "Scorer")
         .def(py::init<int>(), py::arg("n")) // Bind le constructeur avec l'argument n
         .def("score", &Scorer::score, "Calcule le score de la solution", py::arg("python_solution"));
-
-    py::enum_<ItemType>(m, "ItemType")
-        .value("NONE", ItemType::NONE)
-        .value("DOLIPRANE", ItemType::DOLIPRANE)
-        .value("DIAMOX", ItemType::DIAMOX)
-        .value("DULCOLAX", ItemType::DULCOLAX)
-        .export_values(); // Permet d'accéder aux valeurs directement via fil_rouge_py.NONE (optionnel)
 }

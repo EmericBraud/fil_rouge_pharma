@@ -25,7 +25,7 @@ public:
                 racks.back().slots.reserve(items_per_rack);
             }
             Slot new_slot = Slot();
-            new_slot.set_item(ItemType::NONE);
+            new_slot.set_item(NONE);
             racks[i / items_per_rack].slots.push_back(new_slot);
         }
     }
