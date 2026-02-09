@@ -10,12 +10,18 @@ if __name__ == "__main__":
     N_AGENTS = 1
     N_ITER = 80
     COLLABORATIF = True
+    N_POP = 50
+    P_CROSS = 0.9
+    P_MUT = 0.2
 
     scorer.resize(N_MEDICAMENTS)
 
     sma = MultiAgentSystem(
         medicaments=Generator.generate_medicaments(N_MEDICAMENTS),
         N_agents=N_AGENTS,
+        N_pop=N_POP,
+        P_cross=P_CROSS,
+        P_mut=P_MUT,
         collaboratif=COLLABORATIF,
     )
 

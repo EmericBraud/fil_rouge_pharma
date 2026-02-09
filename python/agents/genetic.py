@@ -4,13 +4,9 @@ from collections import Counter
 from typing import List, Dict, Tuple
 from mesa import Agent
 
-from utils.solution import Solution, SolutionManager
+from python.scoring import scorer
 from python.data import Medicament
-
-
-def muter_individu(individu: List[Medicament]):
-    # Utiliser swap_voisin de voisins
-    pass
+from python.voisins import VoisinsManager
 
 
 def croiser_individus(
@@ -58,11 +54,17 @@ def croiser_individus(
 
     return viabiliser(enfant1, enfant2)
 
-def population_aleatoire():
-    pass
+def solution_aleatoire(medicaments: List[Medicament]) -> List[Medicament]:
+    res = []
 
+    for med in medicaments:
+        res.append(med)
+        random.shuffle(res)
 
-# --- Classe Agent Mesa ---
+    return res
+
+def population_aleatoire(medicaments: List[Medicament], N: int) -> List[List[Medicament]]:
+    return [solution_aleatoire(medicaments) for _ in range(N)]
 
 
 class GeneticAgent(Agent):
@@ -76,7 +78,6 @@ class GeneticAgent(Agent):
         collaboratif: bool = False,
     ):
         super().__init__(model=model)
-        self.data = self.model.medicaments
         self.N = N
         self.P_cross = P_cross
         self.P_mut = P_mut
@@ -87,22 +88,21 @@ class GeneticAgent(Agent):
         self.frequences: Dict[int, int] = {}
         self.generation = 0
 
-        if self.data:
-            self.population = SolutionManager.population_aleatoire(self.data, self.N)
-            if self.population:
-                self.frequences = Counter(self.population[0])
-
-        self.makespan = compute_makespan()
         self.order = self.model.medicaments
+        self.population = population_aleatoire(self.order, self.N)
+        if self.population:
+            self.frequences = Counter(self.population[0])
+
+        self.makespan = scorer.score_solution(self.order)
         self._evaluate_population(self.population)
 
     def _evaluate_population(self, population: List[List[Medicament]]) -> List[float]:
         current_best_cmax = self.makespan
-        current_best_individual = SolutionManager.convertir_solution_reverse(self.order)
+        current_best_individual = self.order
         liste_forces: List[float] = []
 
         for individu in population:
-            F_cmax = SolutionManager.makespan(self.data, individu)
+            F_cmax = scorer.score_solution(individu)
 
             if current_best_cmax > F_cmax:
                 current_best_cmax = F_cmax
@@ -112,7 +112,7 @@ class GeneticAgent(Agent):
             liste_forces.append(F)
 
         self.makespan = current_best_cmax
-        self.order = SolutionManager.convertir_solution(current_best_individual)
+        self.order = current_best_individual
         return liste_forces
 
     def local_search(self):
@@ -141,7 +141,7 @@ class GeneticAgent(Agent):
 
         for i in range(len(P_next)):
             if random.uniform(0, 1) < self.P_mut:
-                muter_individu(P_next[i])
+                VoisinsManager.swap_voisin(P_next[i])
 
         self.population = P_next
         self.generation += 1
@@ -171,9 +171,7 @@ class GeneticAgent(Agent):
                 ]
                 if cmaxes:
                     worst_index = cmaxes.index(max(cmaxes))
-                    self.population[worst_index] = copy.deepcopy(
-                        SolutionManager.convertir_solution_reverse(best_order_global)
-                    )
+                    self.population[worst_index] = copy.deepcopy(best_order_global)
 
     def step(self):
         self.local_search()

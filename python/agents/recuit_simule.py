@@ -5,9 +5,7 @@ import numpy as np
 from mesa import Agent
 
 from python.scoring import scorer
-
 from python.voisins import VoisinsManager
-from python.data import Generator
 
 
 class RecuitSimuleAgent(Agent):
