@@ -1,14 +1,17 @@
 import fil_rouge_py
 
-n = 10
-scorer = fil_rouge_py.Scorer(10)
+from data import Medicament
 
 
-def score_solution(solution: list[int]) -> float:
+class Scorer:
+    def __init__(self, n) -> None:
+        self.scorer = fil_rouge_py.Scorer(n)
 
-    return scorer.score(solution)
+    def score_solution(self, solution: list[Medicament]) -> float:
+        return self.scorer.score([medicament.id for medicament in solution])
+
+    def resize(self, n):
+        self.scorer.resize(n)
 
 
-if __name__ == "__main__":
-    print(score_solution([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
-    print(score_solution([0, 1, 2, 3, 7, 5, 6, 4, 8, 9]))
+scorer = Scorer(10)
