@@ -22,22 +22,18 @@ file(GLOB_RECURSE CORE_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 list(FILTER CORE_SOURCES EXCLUDE REGEX "main.cpp")
 
 add_library(fil_rouge_core SHARED ${CORE_SOURCES})
+target_link_libraries(fil_rouge_core PUBLIC 
+    sfml-graphics 
+    sfml-window 
+    sfml-system
+    Threads::Threads
+)
 target_include_directories(fil_rouge_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}       # pour les headers racine (shelf.hpp, slot.hpp, ...)
     ${CMAKE_CURRENT_SOURCE_DIR}/src   # pour les headers dans src/
 )
 target_compile_options(fil_rouge_core PRIVATE -Wall -Wextra)
 
-# ------------------------------------------------------------------
-# Executable fil_rouge
-# ------------------------------------------------------------------
-add_executable(fil_rouge src/main.cpp)
-target_link_libraries(fil_rouge PRIVATE
-    fil_rouge_core
-    sfml-graphics
-    sfml-window
-    sfml-system
-)
 
 # ------------------------------------------------------------------
 # Python bindings
