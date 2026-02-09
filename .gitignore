@@ -2,3 +2,7 @@
 **/build
 
 **/.venv
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb

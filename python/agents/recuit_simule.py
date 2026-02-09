@@ -4,8 +4,8 @@ import random
 import numpy as np
 from mesa import Agent
 
-from utils.cmax import Cmax_Competences
-from utils.generation_voisins import GenerationVoisins
+from python.voisins import VoisinsManager
+from python.data import Generator
 
 
 class RecuitSimuleAgent(Agent):
@@ -25,8 +25,9 @@ class RecuitSimuleAgent(Agent):
         self.alpha = alpha
         self.collaboratif = collaboratif
 
-        self.order = self.generer_ordre()
-        self.makespan, _ = Cmax_Competences(self.model.patients, self.order)
+        self.order = Generator.generate_medicaments(len(self.model.medicaments))
+        # self.makespan = compute_makespan(self.model.medicaments, self.order)
+        self.makespan = random.random()
 
         self.temperature = t0
         self.iterations = 0
@@ -49,24 +50,13 @@ class RecuitSimuleAgent(Agent):
                 self.makespan = agent.makespan
                 break
 
-    def generer_ordre(self):
-        ordre = []
-        for idx, patient in enumerate(self.model.patients):
-            for idx_ope, operation in enumerate(patient):
-                if (
-                    idx < len(self.model.patients)
-                    and idx_ope < len(patient)
-                    and any(comp > 0 for comp in operation)
-                ):
-                    ordre.append([idx, idx_ope])
-        return ordre
-
     def run_iteration(self):
         if self.iterations >= self.max_iterations:
             return False
 
-        ordre_voisin = GenerationVoisins.generer_voisin(self.order)
-        makespan_voisin, _ = Cmax_Competences(self.model.patients, ordre_voisin)
+        ordre_voisin = VoisinsManager.generer_voisin(self.order)
+        # makespan_voisin = compute_makespan(self.model.medicaments, ordre_voisin)
+        makespan_voisin = random.random()
 
         delta = makespan_voisin - self.makespan
 
