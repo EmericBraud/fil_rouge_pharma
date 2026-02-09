@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-enum class ItemType : uint16_t
+enum ItemType : uint16_t
 {
     NONE,
     DOLIPRANE,
