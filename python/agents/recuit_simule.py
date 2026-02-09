@@ -57,7 +57,6 @@ class RecuitSimuleAgent(Agent):
 
         ordre_voisin = VoisinsManager.generer_voisin(self.order)
         makespan_voisin = scorer.score_solution(ordre_voisin)
-        makespan_voisin = random.random()
 
         delta = makespan_voisin - self.makespan
 

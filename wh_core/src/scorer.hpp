@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <cassert>
+#include <cmath>
 
 #include "item.hpp"
 #include "rack.hpp"
@@ -45,13 +46,13 @@ public:
         }
 
         // On calcule le score. Pour le moment, c'est n'importe quoi
-        int score = 0;
+        double score = 0;
         int j = 0;
         for (const auto &rack : racks)
         {
             for (const auto &slot : rack.slots)
             {
-                score += ++j * (static_cast<int>(slot.get_item()) + 1);
+                score += std::abs(std::sin(++j * (static_cast<int>(slot.get_item()) + 1))) * 0.5 + 1;
             }
         }
 

@@ -19,20 +19,16 @@ class VoisinsManager:
             return copy.deepcopy(ordre)
 
         nouvel_ordre = copy.deepcopy(ordre)
-        max_tentatives = 100
 
-        for _ in range(max_tentatives):
-            i, j = random.sample(range(len(nouvel_ordre)), 2)
+        i, j = random.sample(range(len(nouvel_ordre)), 2)
 
-            med_i = nouvel_ordre[i]
-            med_j = nouvel_ordre[j]
+        med_i = nouvel_ordre[i]
+        med_j = nouvel_ordre[j]
 
-            nouvel_ordre[i], nouvel_ordre[j] = med_j, med_i
+        nouvel_ordre[i], nouvel_ordre[j] = med_j, med_i
 
-            # if VoisinsManager.est_ordre_valide(nouvel_ordre):
-            return nouvel_ordre
-
-        return copy.deepcopy(ordre)
+        # if VoisinsManager.est_ordre_valide(nouvel_ordre):
+        return nouvel_ordre
 
     @staticmethod
     def generer_voisin_insertion(ordre: List[Medicament]) -> List[Medicament]:
