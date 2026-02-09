@@ -6,6 +6,8 @@
 #include "item.hpp"
 #include "rack.hpp"
 
+constexpr int items_per_rack = 10;
+
 class Scorer
 {
     std::vector<Rack> racks;
@@ -13,21 +15,7 @@ class Scorer
 public:
     Scorer(int n)
     {
-        constexpr int items_per_rack = 10;
-
-        racks.reserve(n / items_per_rack + 1);
-
-        for (int i = 0; i < n; ++i)
-        {
-            if (i % items_per_rack == 0)
-            {
-                racks.push_back(Rack());
-                racks.back().slots.reserve(items_per_rack);
-            }
-            Slot new_slot = Slot();
-            new_slot.set_item(NONE);
-            racks[i / items_per_rack].slots.push_back(new_slot);
-        }
+        resize(n);
     }
 
     double score(std::vector<ItemType> python_solution)
@@ -68,5 +56,23 @@ public:
         }
 
         return score;
+    }
+
+    void resize(int new_size)
+    {
+        racks.clear();
+        racks.reserve(new_size / items_per_rack + 1);
+
+        for (int i = 0; i < new_size; ++i)
+        {
+            if (i % items_per_rack == 0)
+            {
+                racks.push_back(Rack());
+                racks.back().slots.reserve(items_per_rack);
+            }
+            Slot new_slot = Slot();
+            new_slot.set_item(NONE);
+            racks[i / items_per_rack].slots.push_back(new_slot);
+        }
     }
 };

@@ -24,5 +24,6 @@ PYBIND11_MODULE(fil_rouge_py, m)
 
     py::class_<Scorer>(m, "Scorer")
         .def(py::init<int>(), py::arg("n")) // Bind le constructeur avec l'argument n
-        .def("score", &Scorer::score, "Calcule le score de la solution", py::arg("python_solution"));
+        .def("score", &Scorer::score, "Calcule le score de la solution", py::arg("python_solution"))
+        .def("resize", &Scorer::resize, "Change la taille de l'entrée", py::arg("new_size"));
 }
