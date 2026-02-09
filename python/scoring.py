@@ -6,7 +6,7 @@ scorer = fil_rouge_py.Scorer(10)
 
 def score_solution(solution: list[int]) -> float:
 
-    return scorer.score([fil_rouge_py.ItemType(i) for i in solution])
+    return scorer.score(solution)
 
 
 if __name__ == "__main__":
