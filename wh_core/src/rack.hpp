@@ -12,5 +12,5 @@ public:
 
 int f(int x)
 {
-    return 2 * x;
+    return x * x * 10;
 }

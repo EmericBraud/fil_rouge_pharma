@@ -74,11 +74,10 @@ if(BUILD_PYTHON)
     find_program(PYBIND11_STUBGEN pybind11-stubgen)
     
     if(PYBIND11_STUBGEN)
-        add_custom_command(
+       add_custom_command(
             TARGET fil_rouge_py POST_BUILD
-            # CORRECT : On utilise cmake -E env POUR lancer stubgen sur la même ligne
-            COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=$<TARGET_FILE_DIR:fil_rouge_py>" ${PYBIND11_STUBGEN} fil_rouge_py --output-dir ${CMAKE_CURRENT_SOURCE_DIR}/typings
-            COMMENT "Génération du fichier de stubs Python (.pyi) pour l'autocomplétion..."
+            COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=$<TARGET_FILE_DIR:fil_rouge_py>" ${PYBIND11_STUBGEN} fil_rouge_py --output-dir $<TARGET_FILE_DIR:fil_rouge_py>
+            COMMENT "Génération du .pyi directement à côté du .so..."
             VERBATIM
         )
     else()

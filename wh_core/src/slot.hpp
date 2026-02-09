@@ -1,5 +1,7 @@
 #pragma once
 
+#include "item.hpp"
+
 struct Coord
 {
     int x, y;
@@ -7,6 +9,8 @@ struct Coord
 
 class Slot
 {
-public:
     Coord xy;
+    ItemType item_type;
+
+public:
 };

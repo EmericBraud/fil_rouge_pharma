@@ -15,8 +15,7 @@ PYBIND11_MODULE(fil_rouge_py, m)
         .def_readwrite("y", &Coord::y);
 
     py::class_<Slot>(m, "Slot")
-        .def(py::init<>())
-        .def_readwrite("xy", &Slot::xy);
+        .def(py::init<>());
 
     py::class_<Rack>(m, "Rack")
         .def(py::init());
