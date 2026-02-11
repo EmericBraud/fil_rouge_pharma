@@ -4,10 +4,8 @@ import random
 import numpy as np
 from mesa import Agent
 
-from python.scoring import scorer
-
+from python.scoring import Scorer
 from python.voisins import VoisinsManager
-from python.data import Generator
 
 
 class RecuitSimuleAgent(Agent):
@@ -28,7 +26,8 @@ class RecuitSimuleAgent(Agent):
         self.collaboratif = collaboratif
 
         self.order = self.model.medicaments
-        self.makespan = scorer.score_solution(self.order)
+        self.scorer = Scorer(len(self.model.medicaments))
+        self.makespan = self.scorer.score_solution(self.order)
 
         self.temperature = t0
         self.iterations = 0
@@ -56,7 +55,7 @@ class RecuitSimuleAgent(Agent):
             return False
 
         ordre_voisin = VoisinsManager.generer_voisin(self.order)
-        makespan_voisin = scorer.score_solution(ordre_voisin)
+        makespan_voisin = self.scorer.score_solution(ordre_voisin)
 
         delta = makespan_voisin - self.makespan
 
