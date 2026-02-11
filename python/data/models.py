@@ -16,3 +16,12 @@ class BaseEntity:
 @dataclass(eq=True)
 class Medicament(BaseEntity):
     name: str
+
+    def __hash__(self):
+        return hash((self.id, self.name))
+
+    def __eq__(self, other):
+        if isinstance(other, Medicament):
+            return (self.name == other.name)
+
+        return False

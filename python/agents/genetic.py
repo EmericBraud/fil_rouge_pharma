@@ -4,7 +4,7 @@ from collections import Counter
 from typing import List, Dict, Tuple
 from mesa import Agent
 
-from python.scoring import scorer
+from python.scoring import Scorer
 from python.data import Medicament
 from python.voisins import VoisinsManager
 
@@ -93,7 +93,8 @@ class GeneticAgent(Agent):
         if self.population:
             self.frequences = Counter(self.population[0])
 
-        self.makespan = scorer.score_solution(self.order)
+        self.scorer = Scorer(len(self.model.medicaments))
+        self.makespan = self.scorer.score_solution(self.order)
         self._evaluate_population(self.population)
 
     def _evaluate_population(self, population: List[List[Medicament]]) -> List[float]:
@@ -102,7 +103,7 @@ class GeneticAgent(Agent):
         liste_forces: List[float] = []
 
         for individu in population:
-            F_cmax = scorer.score_solution(individu)
+            F_cmax = self.scorer.score_solution(individu)
 
             if current_best_cmax > F_cmax:
                 current_best_cmax = F_cmax
