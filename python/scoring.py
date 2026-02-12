@@ -1,6 +1,6 @@
 import fil_rouge_py
 
-from data import Medicament
+from python.data import Medicament
 
 
 class Scorer:

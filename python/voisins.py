@@ -11,7 +11,7 @@ class VoisinsManager:
         pass
 
     @staticmethod
-    def generer_voisin_valide(ordre: List[Medicament]) -> List[Medicament]:
+    def swap_voisin(ordre: List[Medicament]) -> List[Medicament]:
         """
         Génère un voisin valide en échangeant deux médicaments.
         """
@@ -67,7 +67,7 @@ class VoisinsManager:
         Choisit aléatoirement une méthode pour choisir un nouveau voisin
         """
         strategies = [
-            VoisinsManager.generer_voisin_valide,
+            VoisinsManager.swap_voisin,
             VoisinsManager.generer_voisin_insertion,
         ]
 
