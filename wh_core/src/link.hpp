@@ -2,7 +2,7 @@
 
 class Node;
 
-class Link
+struct Link
 {
     Node &node;
     int distance;
