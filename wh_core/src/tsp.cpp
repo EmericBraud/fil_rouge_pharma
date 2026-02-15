@@ -1,6 +1,8 @@
 #include "tsp.hpp"
 #include "dijkstra.hpp"
 #include <limits>
+#include <unordered_set>
+#include <stdexcept>
 
 std::vector<std::vector<double>> build_distance_matrix(
     const WarehouseGraph& g,
@@ -28,12 +30,31 @@ double compute_path_cost(
     const std::vector<std::vector<double>>& matrix,
     const std::vector<int>& item_order
 ) {
-    if (item_order.empty()) return matrix[0][matrix.size() - 1];
+    int n = matrix.size();
+    int start_index = 0;
+    int end_index   = n - 1;
+
+    if (item_order.empty())
+        return matrix[start_index][end_index];
+
+    std::unordered_set<int> visited;
+
+    for (int idx : item_order) {
+
+        if (idx <= start_index || idx >= end_index) {
+            throw std::invalid_argument(
+                "Invalid node index in item_order"
+            );
+        }
+
+        if (!visited.insert(idx).second) {
+            throw std::invalid_argument(
+                "Duplicate node detected in item_order"
+            );
+        }
+    }
 
     double total = 0.0;
-
-    int start_index = 0;
-    int end_index   = matrix.size() - 1;
 
     total += matrix[start_index][item_order[0]];
 

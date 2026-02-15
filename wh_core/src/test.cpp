@@ -48,5 +48,16 @@ int main() {
         std::cout << "\n";
     }
 
+    std::vector<int> order = {1, 2, 3};  
+
+    double cost = compute_path_cost(matrix, order);
+
+    std::cout << "\n===== TEST PATH COST =====\n";
+    std::cout << "Ordre des items : ";
+    for (int idx : order) {
+        std::cout << idx << " ";
+    }
+    std::cout << "\nDistance totale = " << cost << "\n";
+
     return 0;
 }
