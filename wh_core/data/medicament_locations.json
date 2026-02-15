@@ -1,0 +1,5 @@
+[
+    { "medicament_id": 1, "location_id": 1 },
+    { "medicament_id": 2, "location_id": 2 },
+    { "medicament_id": 3, "location_id": 3 }
+]
