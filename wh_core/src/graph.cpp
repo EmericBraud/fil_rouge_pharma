@@ -39,10 +39,34 @@ int WarehouseGraph::insert_node_between(
     int v,
     double dist_u,
     double dist_v
-) 
+)
 {
     if (u >= size() || v >= size()) {
         throw std::out_of_range("Invalid node index");
+    }
+
+    double original_distance = -1.0;
+    bool found = false;
+
+    for (const auto& edge : adjacency_list[u])
+    {
+        if (edge.to == v)
+        {
+            original_distance = edge.dist;
+            found = true;
+            break;
+        }
+    }
+
+    if (!found)
+    {
+        throw std::logic_error("No edge exists between the given nodes");
+    }
+
+    const double EPS = 1e-6;
+    if (std::abs((dist_u + dist_v) - original_distance) > EPS)
+    {
+        throw std::logic_error("Inserted distances do not match original edge length");
     }
 
     int new_node = size();
@@ -55,6 +79,7 @@ int WarehouseGraph::insert_node_between(
 
     return new_node;
 }
+
 
 const std::vector<Edge>& WarehouseGraph::neighbors(int u) const {
     return adjacency_list[u];
