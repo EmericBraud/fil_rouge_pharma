@@ -41,8 +41,8 @@ int main() {
 
     std::cout << "\n===== MATRICE DES DISTANCES =====\n\n";
 
-    for (int i = 0; i < matrix.size(); ++i) {
-        for (int j = 0; j < matrix[i].size(); ++j) {
+    for (size_t i = 0; i < matrix.size(); ++i) {
+        for (size_t j = 0; j < matrix[i].size(); ++j) {
             std::cout << std::setw(8) << matrix[i][j] << " ";
         }
         std::cout << "\n";

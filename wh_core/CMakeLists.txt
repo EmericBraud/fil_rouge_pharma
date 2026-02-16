@@ -10,6 +10,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # ------------------------------------------------------------------
 find_package(Threads REQUIRED)
 
+find_package(nlohmann_json REQUIRED)
+
 # ------------------------------------------------------------------
 # Options
 # ------------------------------------------------------------------
@@ -25,6 +27,10 @@ add_library(fil_rouge_core SHARED ${CORE_SOURCES})
 target_include_directories(fil_rouge_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}       # pour les headers racine (shelf.hpp, slot.hpp, ...)
     ${CMAKE_CURRENT_SOURCE_DIR}/src   # pour les headers dans src/
+)
+target_link_libraries(fil_rouge_core
+    PUBLIC
+        nlohmann_json::nlohmann_json
 )
 target_compile_options(fil_rouge_core PRIVATE -Wall -Wextra)
 

@@ -58,7 +58,7 @@ double compute_path_cost(
 
     total += matrix[start_index][item_order[0]];
 
-    for (int i = 0; i < item_order.size() - 1; ++i) {
+    for (size_t i = 0; i + 1 < item_order.size(); ++i) {
         total += matrix[item_order[i]][item_order[i + 1]];
     }
 

@@ -5,13 +5,17 @@
 WarehouseGraph::WarehouseGraph(int num_nodes) 
     : adjacency_list(num_nodes) {}
 
-void WarehouseGraph::add_edge(int u, int v, double dist) {
-    if (u >= adjacency_list.size() || v >= adjacency_list.size()) {
+void WarehouseGraph::add_edge(int u, int v, double dist)
+{
+    if (u < 0 || v < 0 ||
+        static_cast<size_t>(u) >= adjacency_list.size() ||
+        static_cast<size_t>(v) >= adjacency_list.size())
+    {
         throw std::out_of_range("Invalid node index");
     }
 
-    adjacency_list[u].push_back({v, dist});
-    adjacency_list[v].push_back({u, dist});
+    adjacency_list[static_cast<size_t>(u)].push_back({v, dist});
+    adjacency_list[static_cast<size_t>(v)].push_back({u, dist});
 }
 
 void WarehouseGraph::remove_edge(int u, int v) {
