@@ -1,20 +1,19 @@
 import matplotlib.pyplot as plt
-from python.scoring import scorer
+from python.scoring import Scorer
 
 from python.agents.multi_agents import MultiAgentSystem
 from python.data import Generator
 
 
 if __name__ == "__main__":
-    N_MEDICAMENTS = 100
+    scorer = Scorer()
+    N_MEDICAMENTS = scorer.get_size()
     N_AGENTS = 1
     N_ITER = 80
     COLLABORATIF = True
     N_POP = 50
     P_CROSS = 0.9
     P_MUT = 0.2
-
-    scorer.resize(N_MEDICAMENTS)
 
     sma = MultiAgentSystem(
         medicaments=Generator.generate_medicaments(N_MEDICAMENTS),

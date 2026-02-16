@@ -8,8 +8,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Copy of data folder
 
-file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/data" 
-     DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
+set(DATA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/data")
+set(DATA_DEST "${CMAKE_CURRENT_BINARY_DIR}/data")
+
+# Commande pour copier le dossier data dans le build
+file(COPY ${DATA_SRC} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
      
 # ------------------------------------------------------------------
 # Threads

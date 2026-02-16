@@ -11,5 +11,6 @@ PYBIND11_MODULE(fil_rouge_py, m)
 
     py::class_<WarehouseEngine>(m, "WarehouseEngine")
         .def(py::init())
-        .def("evaluate_order", &WarehouseEngine::evaluate_order, "Calcule le score de la solution", py::arg("medicament_ids"));
+        .def("evaluate_order", &WarehouseEngine::evaluate_order, "Calcule le score de la solution", py::arg("medicament_ids"))
+        .def("get_size", &WarehouseEngine::get_size, "Retourne le nombre de médicaments à trier");
 }

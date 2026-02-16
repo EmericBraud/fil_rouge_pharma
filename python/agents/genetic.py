@@ -54,6 +54,7 @@ def croiser_individus(
 
     return viabiliser(enfant1, enfant2)
 
+
 def solution_aleatoire(medicaments: List[Medicament]) -> List[Medicament]:
     res = []
 
@@ -63,7 +64,10 @@ def solution_aleatoire(medicaments: List[Medicament]) -> List[Medicament]:
 
     return res
 
-def population_aleatoire(medicaments: List[Medicament], N: int) -> List[List[Medicament]]:
+
+def population_aleatoire(
+    medicaments: List[Medicament], N: int
+) -> List[List[Medicament]]:
     return [solution_aleatoire(medicaments) for _ in range(N)]
 
 
@@ -93,7 +97,7 @@ class GeneticAgent(Agent):
         if self.population:
             self.frequences = Counter(self.population[0])
 
-        self.scorer = Scorer(len(self.model.medicaments))
+        self.scorer = Scorer()
         self.makespan = self.scorer.score_solution(self.order)
         self._evaluate_population(self.population)
 
