@@ -6,6 +6,8 @@
 #include <iostream>
 #include <string_view>
 #include <filesystem>
+#include <ranges>
+#include <algorithm>
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -17,6 +19,35 @@ WarehouseEngine::WarehouseEngine()
     : warehouse(buildWarehouseGraph()), size(0)
 {
     load_files();
+    std::vector<std::pair<int, int>> rangees;
+    /*for (auto location_pair : location_table)
+    {
+        auto location = location_pair.second;
+        warehouse.insert_node_between(location.u, location.v, location.dist_u, location.dist_v);
+        int u = std::min(location.u, location.v);
+        int v = std::max(location.u, location.v);
+        if (!std::ranges::contains(rangees, std::pair<int, int>(u, v)))
+        {
+            rangees.push_back(std::pair<int, int>(u, v));
+        }
+    }
+    for (auto pair : rangees)
+    {
+        int u = pair.first;
+        int v = pair.second;
+
+        auto u_neighbors = warehouse.neighbors(u);
+        auto v_neighbors = warehouse.neighbors(v);
+
+        auto common_neighbors = u_neighbors | std::views::filter([&v_neighbors](const auto &neighbor)
+                                                                 { return std::ranges::contains(v_neighbors, neighbor); }) |
+                                std::ranges::to<std::vector>();
+
+        std::ranges::sort(common_neighbors, [](const auto &a, const auto &b)
+                          {
+                              return a.dist < b.dist; // Exemple : trier par distance croissante
+                          });
+    }*/
 }
 
 void WarehouseEngine::load_locations(const std::string &filename)

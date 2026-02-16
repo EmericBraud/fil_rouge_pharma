@@ -1,7 +1,8 @@
 #include "warehouse_graph.hpp"
 
-WarehouseGraph buildWarehouseGraph() {
-    WarehouseGraph g(35);
+WarehouseGraph buildWarehouseGraph()
+{
+    WarehouseGraph g;
 
     g.add_edge(0, 1, 1160.0);
     g.add_edge(0, 2, 110.0);
