@@ -5,6 +5,12 @@ project(fil_rouge VERSION 1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+
+# Copy of data folder
+
+file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/data" 
+     DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
+     
 # ------------------------------------------------------------------
 # Threads
 # ------------------------------------------------------------------

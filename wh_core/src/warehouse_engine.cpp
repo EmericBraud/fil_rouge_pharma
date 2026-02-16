@@ -4,24 +4,35 @@
 #include <fstream>
 #include <stdexcept>
 #include <iostream>
+#include <string_view>
 
 using json = nlohmann::json;
 
-WarehouseEngine::WarehouseEngine()
-    : warehouse(buildWarehouseGraph()){}
+constexpr char locations_file[] = "data/locations.json";
+constexpr char medicament_locations_file[] = "data/medicament_locations.json";
 
-void WarehouseEngine::load_locations(const std::string& filename) {
+WarehouseEngine::WarehouseEngine()
+    : warehouse(buildWarehouseGraph())
+{
+    load_locations(locations_file);
+    load_medicament_mapping(medicament_locations_file);
+}
+
+void WarehouseEngine::load_locations(const std::string &filename)
+{
     std::ifstream file(filename);
-    if (!file.is_open()) throw std::runtime_error("Cannot open file: " + filename);
+    if (!file.is_open())
+        throw std::runtime_error("Cannot open file: " + filename);
 
     json j;
     file >> j;
 
-    for (const auto& entry : j) {
+    for (const auto &entry : j)
+    {
         Location loc;
         loc.id = entry.at("id").get<int>();
-        loc.u  = entry.at("u").get<int>();
-        loc.v  = entry.at("v").get<int>();
+        loc.u = entry.at("u").get<int>();
+        loc.v = entry.at("v").get<int>();
         loc.dist_u = entry.at("dist_u").get<double>();
         loc.dist_v = entry.at("dist_v").get<double>();
 
@@ -29,16 +40,19 @@ void WarehouseEngine::load_locations(const std::string& filename) {
     }
 }
 
-void WarehouseEngine::load_medicament_mapping(const std::string& filename) {
+void WarehouseEngine::load_medicament_mapping(const std::string &filename)
+{
     std::ifstream file(filename);
-    if (!file.is_open()) throw std::runtime_error("Cannot open file: " + filename);
+    if (!file.is_open())
+        throw std::runtime_error("Cannot open file: " + filename);
 
     json j;
     file >> j;
 
-    for (const auto& entry : j) {
+    for (const auto &entry : j)
+    {
         int medicament_id = entry.at("medicament_id").get<int>();
-        int location_id   = entry.at("location_id").get<int>();
+        int location_id = entry.at("location_id").get<int>();
 
         if (location_table.find(location_id) == location_table.end())
             throw std::runtime_error("Location id not found for medicament " + std::to_string(medicament_id));
@@ -47,25 +61,30 @@ void WarehouseEngine::load_medicament_mapping(const std::string& filename) {
     }
 }
 
-double WarehouseEngine::evaluate_order(const std::vector<int>& medicament_ids) {
+double WarehouseEngine::evaluate_order(const std::vector<int> &medicament_ids)
+{
     std::vector<int> tsp_nodes;
 
     int start_node = 0;
-    int end_node   = 34;
+    int end_node = 34;
     tsp_nodes.push_back(start_node);
 
-    for (int med_id : medicament_ids) {
+    for (int med_id : medicament_ids)
+    {
         if (medicament_to_location.find(med_id) == medicament_to_location.end())
             throw std::runtime_error("Unknown medicament id: " + std::to_string(med_id));
 
         int loc_id = medicament_to_location[med_id];
-        const Location& loc = location_table.at(loc_id);
+        const Location &loc = location_table.at(loc_id);
 
         static std::unordered_map<int, int> inserted_nodes;
         int node_number;
-        if (inserted_nodes.find(loc_id) != inserted_nodes.end()) {
+        if (inserted_nodes.find(loc_id) != inserted_nodes.end())
+        {
             node_number = inserted_nodes[loc_id];
-        } else {
+        }
+        else
+        {
             node_number = warehouse.insert_node_between(loc.u, loc.v, loc.dist_u, loc.dist_v);
             inserted_nodes[loc_id] = node_number;
         }

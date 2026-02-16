@@ -2,7 +2,7 @@
 #include <iostream>
 #include <algorithm>
 
-WarehouseGraph::WarehouseGraph(int num_nodes) 
+WarehouseGraph::WarehouseGraph(int num_nodes)
     : adjacency_list(num_nodes) {}
 
 void WarehouseGraph::add_edge(int u, int v, double dist)
@@ -18,37 +18,38 @@ void WarehouseGraph::add_edge(int u, int v, double dist)
     adjacency_list[static_cast<size_t>(v)].push_back({u, dist});
 }
 
-void WarehouseGraph::remove_edge(int u, int v) {
-    auto& neighbors_u = adjacency_list[u];
+void WarehouseGraph::remove_edge(int u, int v)
+{
+    auto &neighbors_u = adjacency_list[u];
     neighbors_u.erase(
         std::remove_if(neighbors_u.begin(), neighbors_u.end(),
-            [v](const Edge& e) { return e.to == v; }),
-        neighbors_u.end()
-    );
+                       [v](const Edge &e)
+                       { return e.to == v; }),
+        neighbors_u.end());
 
-    auto& neighbors_v = adjacency_list[v];
+    auto &neighbors_v = adjacency_list[v];
     neighbors_v.erase(
         std::remove_if(neighbors_v.begin(), neighbors_v.end(),
-            [u](const Edge& e) { return e.to == u; }),
-        neighbors_v.end()
-    );
+                       [u](const Edge &e)
+                       { return e.to == u; }),
+        neighbors_v.end());
 }
 
 int WarehouseGraph::insert_node_between(
     int u,
     int v,
     double dist_u,
-    double dist_v
-)
+    double dist_v)
 {
-    if (u >= size() || v >= size()) {
+    if (u >= size() || v >= size())
+    {
         throw std::out_of_range("Invalid node index");
     }
 
     double original_distance = -1.0;
     bool found = false;
 
-    for (const auto& edge : adjacency_list[u])
+    for (const auto &edge : adjacency_list[u])
     {
         if (edge.to == v)
         {
@@ -80,11 +81,12 @@ int WarehouseGraph::insert_node_between(
     return new_node;
 }
 
-
-const std::vector<Edge>& WarehouseGraph::neighbors(int u) const {
+const std::vector<Edge> &WarehouseGraph::neighbors(int u) const
+{
     return adjacency_list[u];
 }
 
-int WarehouseGraph::size() const {
+int WarehouseGraph::size() const
+{
     return adjacency_list.size();
 }
