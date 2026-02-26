@@ -19,7 +19,7 @@ struct Node
     int id;
     std::unordered_map<int, Edge> neighbors;
 
-    void add_neighbor(int neighbor_id, int dist)
+    void add_neighbor(int neighbor_id, double dist)
     {
         if (neighbors.contains(neighbor_id))
             return;
