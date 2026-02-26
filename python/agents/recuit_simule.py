@@ -26,7 +26,7 @@ class RecuitSimuleAgent(Agent):
         self.collaboratif = collaboratif
 
         self.order = self.model.medicaments
-        self.scorer = Scorer(len(self.model.medicaments))
+        self.scorer = Scorer()
         self.makespan = self.scorer.score_solution(self.order)
 
         self.temperature = t0

@@ -5,10 +5,21 @@ project(fil_rouge VERSION 1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+
+# Copy of data folder
+
+set(DATA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/data")
+set(DATA_DEST "${CMAKE_CURRENT_BINARY_DIR}/data")
+
+# Commande pour copier le dossier data dans le build
+file(COPY ${DATA_SRC} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+     
 # ------------------------------------------------------------------
 # Threads
 # ------------------------------------------------------------------
 find_package(Threads REQUIRED)
+
+find_package(nlohmann_json REQUIRED)
 
 # ------------------------------------------------------------------
 # Options
@@ -31,6 +42,10 @@ target_link_libraries(fil_rouge_core PUBLIC
 target_include_directories(fil_rouge_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}       # pour les headers racine (shelf.hpp, slot.hpp, ...)
     ${CMAKE_CURRENT_SOURCE_DIR}/src   # pour les headers dans src/
+)
+target_link_libraries(fil_rouge_core
+    PUBLIC
+        nlohmann_json::nlohmann_json
 )
 target_compile_options(fil_rouge_core PRIVATE -Wall -Wextra)
 
