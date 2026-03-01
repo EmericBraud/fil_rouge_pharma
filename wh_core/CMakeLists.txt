@@ -1,64 +1,77 @@
 cmake_minimum_required(VERSION 3.16)
 
+# Supprime le warning lié à FetchContent (CMP0135)
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
+
 project(fil_rouge VERSION 1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-
-# Copy of data folder
-
-set(DATA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/data")
-set(DATA_DEST "${CMAKE_CURRENT_BINARY_DIR}/data")
-
-# Commande pour copier le dossier data dans le build
-file(COPY ${DATA_SRC} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-     
 # ------------------------------------------------------------------
-# Threads
+# Dépendances Externes
 # ------------------------------------------------------------------
 find_package(Threads REQUIRED)
-
 find_package(nlohmann_json REQUIRED)
+# On cherche SFML explicitement
+find_package(SFML 2.5 COMPONENTS graphics window system REQUIRED)
 
 # ------------------------------------------------------------------
-# Options
+# Ressources (Data)
 # ------------------------------------------------------------------
-option(BUILD_PYTHON "Build Python module" ON)
+set(DATA_SRC "${CMAKE_CURRENT_SOURCE_DIR}/data")
+if(EXISTS ${DATA_SRC})
+    file(COPY ${DATA_SRC} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+endif()
 
 # ------------------------------------------------------------------
-# Core library
+# Core Library (fil_rouge_core)
 # ------------------------------------------------------------------
 file(GLOB_RECURSE CORE_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
-list(FILTER CORE_SOURCES EXCLUDE REGEX "main.cpp")
+
+# Exclusion propre de main.cpp de la librairie pour éviter les doublons de symbole 'main'
+foreach(_source ${CORE_SOURCES})
+    if(_source MATCHES "main\\.cpp$")
+        list(REMOVE_ITEM CORE_SOURCES ${_source})
+    endif()
+endforeach()
 
 add_library(fil_rouge_core SHARED ${CORE_SOURCES})
+
 target_link_libraries(fil_rouge_core PUBLIC 
     sfml-graphics 
     sfml-window 
     sfml-system
     Threads::Threads
+    nlohmann_json::nlohmann_json
 )
+
 target_include_directories(fil_rouge_core PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}       # pour les headers racine (shelf.hpp, slot.hpp, ...)
-    ${CMAKE_CURRENT_SOURCE_DIR}/src   # pour les headers dans src/
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(fil_rouge_core
-    PUBLIC
-        nlohmann_json::nlohmann_json
-)
+
 target_compile_options(fil_rouge_core PRIVATE -Wall -Wextra)
 
+# ------------------------------------------------------------------
+# Main Application (L'exécutable principal)
+# ------------------------------------------------------------------
+# On s'assure que src/main.cpp existe bien à cet endroit
+add_executable(app_exe src/main.cpp)
+target_link_libraries(app_exe PRIVATE fil_rouge_core)
+
+# Définit le nom final du fichier (./fil_rouge au lieu de ./app_exe)
+set_target_properties(app_exe PROPERTIES OUTPUT_NAME "fil_rouge")
 
 # ------------------------------------------------------------------
-# Python bindings
+# Python Bindings
 # ------------------------------------------------------------------
+option(BUILD_PYTHON "Build Python module" ON)
 
 if(BUILD_PYTHON)
-    find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-endif()
-
-if(BUILD_PYTHON)
+    find_package(Python3 COMPONENTS Interpreter Development.Module REQUIRED)
     include(FetchContent)
 
     FetchContent_Declare(
@@ -68,56 +81,54 @@ if(BUILD_PYTHON)
     )
     FetchContent_MakeAvailable(pybind11)
 
-    pybind11_add_module(fil_rouge_py
-        bindings/python_bindings.cpp
-    )
+    pybind11_add_module(fil_rouge_py bindings/python_bindings.cpp)
 
-    # inclure TOUS les headers du projet
     target_include_directories(fil_rouge_py PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}       # wh_core
-        ${CMAKE_CURRENT_SOURCE_DIR}/src   # src si tu as des headers là
-        ${CMAKE_CURRENT_SOURCE_DIR}/wh_core # si tes headers sont dans un sous-dossier wh_core
-        ${Python3_INCLUDE_DIRS}           # <-- ajoute ceci pour Python.h
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
 
-    target_link_libraries(fil_rouge_py PRIVATE fil_rouge_core Python3::Python pybind11::module)
+    target_link_libraries(fil_rouge_py PRIVATE fil_rouge_core)
 
+    # Génération des stubs (.pyi) pour l'autocomplétion
     find_program(PYBIND11_STUBGEN pybind11-stubgen)
-    
     if(PYBIND11_STUBGEN)
        add_custom_command(
             TARGET fil_rouge_py POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=$<TARGET_FILE_DIR:fil_rouge_py>" ${PYBIND11_STUBGEN} fil_rouge_py --output-dir $<TARGET_FILE_DIR:fil_rouge_py>
-            COMMENT "Génération du .pyi directement à côté du .so..."
+            COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=$<TARGET_FILE_DIR:fil_rouge_py>" 
+                    ${PYBIND11_STUBGEN} fil_rouge_py --output-dir $<TARGET_FILE_DIR:fil_rouge_py>
+            COMMENT "Génération des fichiers de stub Python (.pyi)"
             VERBATIM
         )
-    else()
-        message(WARNING "pybind11-stubgen non trouvé. L'autocomplétion Python ne fonctionnera pas parfaitement. (pip install pybind11-stubgen)")
     endif()
-
 endif()
 
 # ------------------------------------------------------------------
-# GoogleTest
+# Tests (GoogleTest)
 # ------------------------------------------------------------------
-include(FetchContent)
+option(BUILD_TESTING "Build tests" ON)
 
-FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/refs/tags/release-1.12.1.zip
-)
+if(BUILD_TESTING)
+    include(FetchContent)
+    FetchContent_Declare(
+      googletest
+      URL https://github.com/google/googletest/archive/refs/tags/release-1.12.1.zip
+    )
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
 
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
+    enable_testing()
 
-enable_testing()
-
-file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "tests/*.cpp")
-add_executable(tests ${TEST_SOURCES})
-target_link_libraries(tests PRIVATE
-    fil_rouge_core
-    gtest_main
-    Threads::Threads
-)
-include(GoogleTest)
-gtest_discover_tests(tests)
+    file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "tests/*.cpp")
+    
+    if(TEST_SOURCES)
+        add_executable(tests ${TEST_SOURCES})
+        target_link_libraries(tests PRIVATE
+            fil_rouge_core
+            gtest_main
+            Threads::Threads
+        )
+        include(GoogleTest)
+        gtest_discover_tests(tests)
+    endif()
+endif()

@@ -36,6 +36,12 @@ private:
     std::unordered_map<int, Location> location_table;
     std::unordered_map<int, int> medicament_to_location;
 
+    std::unordered_map<int, int> location_to_node;
+
+    std::vector<int> matrix_nodes;
+    std::unordered_map<int, int> node_to_matrix_index;
+    std::vector<std::vector<double>> distance_matrix;
+
     void load_files();
 
     void reset()
