@@ -24,6 +24,7 @@ class RecuitSimuleAgent(Agent):
         self.t0 = t0
         self.alpha = alpha
         self.collaboratif = collaboratif
+        self.name = "Recuit Simule"
 
         self.order = self.model.medicaments
         self.scorer = Scorer()
