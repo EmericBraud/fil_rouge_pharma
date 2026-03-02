@@ -13,8 +13,8 @@ class RecuitSimuleAgent(Agent):
     def __init__(
         self,
         model,
-        t0=100,
-        alpha=0.95,
+        t0=10,
+        alpha=0.8,
         cycle_length=100,
         max_iterations=500,
         collaboratif=False,
