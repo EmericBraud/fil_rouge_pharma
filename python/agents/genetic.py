@@ -86,6 +86,7 @@ class GeneticAgent(Agent):
         self.P_cross = P_cross
         self.P_mut = P_mut
         self.collaboratif = collaboratif
+        self.name = "Genetic"
 
         self.population: List[List[Medicament]] = []
         self.cache: Dict[Tuple[int, ...], float] = {}

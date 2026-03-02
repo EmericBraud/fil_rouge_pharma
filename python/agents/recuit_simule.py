@@ -13,8 +13,8 @@ class RecuitSimuleAgent(Agent):
     def __init__(
         self,
         model,
-        t0=100,
-        alpha=0.95,
+        t0=10,
+        alpha=0.8,
         cycle_length=100,
         max_iterations=500,
         collaboratif=False,
@@ -24,6 +24,7 @@ class RecuitSimuleAgent(Agent):
         self.t0 = t0
         self.alpha = alpha
         self.collaboratif = collaboratif
+        self.name = "Recuit Simule"
 
         self.order = self.model.medicaments
         self.scorer = Scorer()

@@ -21,8 +21,7 @@ void WarehouseGraph::add_edge(int u, int v, double dist)
 
     Node &node_u = nodes_list[u];
     Node &node_v = nodes_list[v];
-    node_u.add_neighbor(v, dist);
-    node_v.add_neighbor(u, dist);
+    node_u.add_neighbor(node_v, dist);
 }
 void WarehouseGraph::remove_edge(int u, int v)
 {
@@ -66,11 +65,8 @@ int WarehouseGraph::insert_node_between(
     Node &new_node = nodes_list.back();
 
     // 5. On fait les connections (Bidirectionnel pour Dijkstra !)
-    real_u.add_neighbor(new_id, dist_u);
-    real_v.add_neighbor(new_id, dist_v);
-
-    new_node.add_neighbor(u_id, dist_u);
-    new_node.add_neighbor(v_id, dist_v);
+    real_u.add_neighbor(new_node, dist_u);
+    real_v.add_neighbor(new_node, dist_v);
 
     return new_id;
 }

@@ -3,12 +3,15 @@
 #include <unordered_map>
 #include <ranges>
 #include <algorithm>
+#include <cassert>
+#include <fstream>
 
 struct Node;
 struct Edge
 {
     int to;
     double dist;
+    Edge() : to(-1), dist(0.0) {}
     Edge(int _to, double _dist) : to(_to), dist(_dist)
     {
     }
@@ -19,12 +22,26 @@ struct Node
     int id;
     std::unordered_map<int, Edge> neighbors;
 
-    void add_neighbor(int neighbor_id, double dist)
+    void add_neighbor(Node &neighbor, double dist)
     {
-        if (neighbors.contains(neighbor_id))
+        if (neighbors.contains(neighbor.id))
             return;
-        neighbors.insert({neighbor_id, Edge(neighbor_id, dist)});
+        neighbors.insert({neighbor.id, Edge(neighbor.id, dist)});
+        neighbor.neighbors.insert({id, Edge(id, dist)});
     }
+
+    double remove_neighbor(Node &neighbor)
+    {
+        double r = -1;
+        if (neighbors.contains(neighbor.id))
+        {
+            r = neighbors[neighbor.id].dist;
+            neighbors.erase(neighbor.id);
+            neighbor.neighbors.erase(id);
+        }
+        return r;
+    }
+
     void remove_edge(const Node &other)
     {
         if (neighbors.contains(other.id))
@@ -58,6 +75,29 @@ public:
                 nodes_list.emplace_back(i);
             }
         }
+    }
+
+    void export_graph_to_dot(const std::string &filename)
+    {
+        std::ofstream file(filename);
+        file << "graph Warehouse {\n";
+        for (int i = 0; i < static_cast<int>(nodes_list.size()); ++i)
+        {
+            const auto &node = get_node(i);
+            for (const auto &[neighbor_id, edge] : node.neighbors)
+            {
+                if (node.id < neighbor_id) // éviter les doublons
+                    file << "    " << node.id << " -- " << neighbor_id
+                         << " [label=\"" << edge.dist << "\"];\n";
+            }
+        }
+        file << "}\n";
+    }
+
+    Node &get_node(const int id)
+    {
+        assert(id < static_cast<int>(nodes_list.size()));
+        return nodes_list[id];
     }
 
     int insert_node_between(

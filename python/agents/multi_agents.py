@@ -5,6 +5,7 @@ from mesa.datacollection import DataCollector
 
 from python.agents.recuit_simule import RecuitSimuleAgent
 from python.agents.genetic import GeneticAgent
+from python.agents.tabou import TabuSearchAgent
 from python.data import Medicament
 
 
@@ -22,18 +23,16 @@ class MultiAgentSystem(Model):
         self.medicaments = medicaments
 
         for _ in range(N_agents):
-            _ = GeneticAgent(
-                model=self,
-                N=N_pop,
-                P_cross=P_cross,
-                P_mut=P_mut,
-                collaboratif=collaboratif,
-            )
+            _ = GeneticAgent(model=self, N=N_pop, P_cross=P_cross, P_mut=P_mut, collaboratif=collaboratif)
             _ = RecuitSimuleAgent(model=self, collaboratif=collaboratif)
+            _ = TabuSearchAgent(model=self, collaboratif=collaboratif)
 
         # DataCollector pour suivre le meilleur makespan global et par agent
         self.datacollector = DataCollector(
-            agent_reporters={"Makespan": lambda a: a.makespan},
+            agent_reporters={
+                "Makespan": lambda a: a.makespan,
+                "AgentName": lambda a: a.name,
+            },
         )
 
         self.running = True
