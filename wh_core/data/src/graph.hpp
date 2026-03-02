@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cassert>
 #include <fstream>
-#include <unordered_set>
 
 struct Node;
 struct Edge
@@ -95,7 +94,9 @@ public:
         file << "}\n";
     }
 
-    void export_graph_with_path_to_dot(const std::string &filename, const std::vector<int> &path, const std::unordered_set<int> &medicament_nodes) const;
+    void export_graph_with_path_to_dot(
+        const std::string &filename,
+        const std::vector<int> &path) const;
 
     Node &get_node(const int id)
     {

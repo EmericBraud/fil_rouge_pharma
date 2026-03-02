@@ -30,21 +30,17 @@ public:
     {
         return size;
     }
-    void export_full_path_from_medicaments_with_style(
+
+    void export_full_path_from_medicaments(
         const std::string &filename,
         const std::vector<int> &medicament_ids) const
     {
-        std::vector<int> targets;
-        targets.push_back(0);
+        if (medicament_ids.empty())
+            return;
 
-        for (int med_id : medicament_ids)
-        {
-            int loc_id = medicament_to_location.at(med_id);
-            targets.push_back(location_to_node.at(loc_id));
-        }
+        std::vector<int> full_node_path;
 
-        targets.push_back(35);
-
+        // Fonction pour récupérer le chemin complet entre deux nœuds via Dijkstra + backtracking
         auto get_path_between_nodes = [this](int start_node, int end_node) -> std::vector<int>
         {
             int n = warehouse.size();
@@ -60,7 +56,6 @@ public:
             {
                 auto [current_dist, u] = pq.top();
                 pq.pop();
-
                 if (current_dist > dist[u])
                     continue;
 
@@ -76,42 +71,39 @@ public:
                 }
             }
 
+            // Reconstruction du chemin
             std::vector<int> path;
             for (int at = end_node; at != -1; at = prev[at])
+            {
                 path.push_back(at);
-
+            }
             std::reverse(path.begin(), path.end());
             return path;
         };
 
-        std::vector<int> full_node_path;
+        // Construire le chemin complet
         int last_node = -1;
-
-        for (int target_node : targets)
-        {
-            if (last_node == -1)
-            {
-                full_node_path.push_back(target_node);
-            }
-            else
-            {
-                std::vector<int> segment = get_path_between_nodes(last_node, target_node);
-                if (segment.size() > 1)
-                {
-                    full_node_path.insert(full_node_path.end(), segment.begin() + 1, segment.end());
-                }
-            }
-            last_node = target_node;
-        }
-
-        std::unordered_set<int> medicament_nodes;
         for (int med_id : medicament_ids)
         {
             int loc_id = medicament_to_location.at(med_id);
-            medicament_nodes.insert(location_to_node.at(loc_id));
+            int node_id = location_to_node.at(loc_id);
+
+            if (last_node == -1)
+            {
+                full_node_path.push_back(node_id);
+            }
+            else
+            {
+                // Récupérer le chemin complet entre le dernier nœud et celui-ci
+                std::vector<int> segment = get_path_between_nodes(last_node, node_id);
+                // Ajouter tous les nœuds sauf le premier (déjà dans full_node_path)
+                full_node_path.insert(full_node_path.end(), segment.begin() + 1, segment.end());
+            }
+            last_node = node_id;
         }
 
-        warehouse.export_graph_with_path_to_dot(filename, full_node_path, medicament_nodes);
+        // Exporter dans le dot
+        warehouse.export_graph_with_path_to_dot(filename, full_node_path);
     }
 
 private:

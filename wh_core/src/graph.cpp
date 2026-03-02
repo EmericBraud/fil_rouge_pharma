@@ -3,6 +3,11 @@
 #include <algorithm>
 #include <utility>
 #include <ranges>
+#include <unordered_set>
+#include <functional>
+#include <iomanip>
+#include <sstream>
+#include <cmath>
 
 WarehouseGraph::WarehouseGraph()
     : nodes_list({}) {}
@@ -79,4 +84,168 @@ const std::unordered_map<int, Edge> &WarehouseGraph::neighbors(int u) const
 int WarehouseGraph::size() const
 {
     return nodes_list.size();
+}
+void WarehouseGraph::export_graph_with_path_to_dot(
+    const std::string &filename,
+    const std::vector<int> &path,
+    const std::unordered_set<int> &medicament_nodes) const
+{
+    std::ofstream file(filename);
+    if (!file.is_open())
+        throw std::runtime_error("Impossible d'ouvrir le fichier DOT");
+
+    file << "digraph Warehouse {\n";
+    file << "    layout=fdp;\n";
+    file << "    K=1.1;\n";
+    file << "    overlap=false;\n";
+    file << "    sep=\"+10\";\n";
+    file << "    splines=true;\n";
+    file << "    edge [len=1.2];\n";
+    file << "    node [style=\"filled\", fontname=\"Arial\", fontsize=12, penwidth=1.5];\n";
+
+    int N = path.size();
+
+    // =========================
+    // Mapping progression chemin
+    // =========================
+    std::unordered_map<int, double> node_progress;
+    for (int i = 0; i < N; ++i)
+    {
+        if (!node_progress.count(path[i]))
+            node_progress[path[i]] = static_cast<double>(i) / (N > 1 ? N - 1 : 1);
+    }
+
+    auto hsv_to_hex = [](double h, double s, double v) -> std::string
+    {
+        double r, g, b;
+        int i = floor(h * 6);
+        double f = h * 6 - i;
+        double p = v * (1 - s);
+        double q = v * (1 - f * s);
+        double t = v * (1 - (1 - f) * s);
+
+        switch (i % 6)
+        {
+        case 0:
+            r = v;
+            g = t;
+            b = p;
+            break;
+        case 1:
+            r = q;
+            g = v;
+            b = p;
+            break;
+        case 2:
+            r = p;
+            g = v;
+            b = t;
+            break;
+        case 3:
+            r = p;
+            g = q;
+            b = v;
+            break;
+        case 4:
+            r = t;
+            g = p;
+            b = v;
+            break;
+        default:
+            r = v;
+            g = p;
+            b = q;
+            break;
+        }
+
+        std::stringstream ss;
+        ss << "#"
+           << std::hex << std::setfill('0')
+           << std::setw(2) << (int)(r * 255)
+           << std::setw(2) << (int)(g * 255)
+           << std::setw(2) << (int)(b * 255);
+
+        return ss.str();
+    };
+
+    // =========================
+    // NŒUDS
+    // =========================
+    for (const auto &node : nodes_list)
+    {
+        std::string shape = medicament_nodes.contains(node.id) ? "box" : "ellipse";
+        std::string fillcolor = "#f9f9f9";
+        std::string color = "#777777";
+        std::string label = std::to_string(node.id);
+        double penwidth = 1.0;
+
+        if (node_progress.count(node.id))
+        {
+            double t = node_progress[node.id];
+            fillcolor = hsv_to_hex(t * 0.82, 0.4, 0.98);
+            color = "#333333";
+
+            if (!path.empty() && node.id == path.front())
+            {
+                label = "START\\n" + label;
+                color = "#000000";
+                penwidth = 4.0;
+            }
+            else if (!path.empty() && node.id == path.back())
+            {
+                label = "END\\n" + label;
+                color = "#cc0000";
+                penwidth = 4.0;
+            }
+        }
+
+        file << "    " << node.id
+             << " [shape=" << shape
+             << ", fillcolor=\"" << fillcolor << "\""
+             << ", color=\"" << color << "\""
+             << ", penwidth=" << penwidth
+             << ", label=\"" << label << "\"];\n";
+    }
+
+    // =========================
+    // ARÊTES
+    // =========================
+    std::unordered_set<std::string> path_edges_set;
+
+    for (size_t i = 0; i + 1 < path.size(); ++i)
+    {
+        path_edges_set.insert(
+            std::to_string(path[i]) + "->" + std::to_string(path[i + 1]));
+    }
+
+    for (const auto &node : nodes_list)
+    {
+        for (const auto &[neighbor_id, edge] : node.neighbors)
+        {
+            std::string forward =
+                std::to_string(node.id) + "->" + std::to_string(neighbor_id);
+
+            std::string reverse =
+                std::to_string(neighbor_id) + "->" + std::to_string(node.id);
+
+            bool is_path_edge =
+                path_edges_set.count(forward) ||
+                path_edges_set.count(reverse);
+
+            if (path_edges_set.count(forward))
+            {
+                // Flèche du chemin
+                file << "    " << node.id << " -> " << neighbor_id
+                     << " [penwidth=2.5, color=\"#222222\", weight=10];\n";
+            }
+            else if (!is_path_edge && node.id < neighbor_id)
+            {
+                // Lien structurel UNIQUEMENT si non utilisé par le chemin
+                file << "    " << node.id << " -> " << neighbor_id
+                     << " [dir=none, color=\"#cccccc\", style=\"dotted\", weight=1];\n";
+            }
+        }
+    }
+
+    file << "}\n";
 }
