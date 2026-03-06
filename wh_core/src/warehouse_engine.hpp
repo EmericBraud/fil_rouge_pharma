@@ -30,6 +30,9 @@ public:
     {
         return size;
     }
+
+    std::vector<double> get_cumulative_distances(const std::vector<int> &medicament_ids);
+
     void export_full_path_from_medicaments_with_style(
         const std::string &filename,
         const std::vector<int> &medicament_ids) const

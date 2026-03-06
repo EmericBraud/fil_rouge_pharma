@@ -13,5 +13,6 @@ PYBIND11_MODULE(fil_rouge_py, m)
         .def(py::init<>())
         .def("evaluate_order", &WarehouseEngine::evaluate_order, "Calcule le score de la solution", py::arg("medicament_ids"))
         .def("get_size", &WarehouseEngine::get_size, "Retourne le nombre de médicaments à trier")
-        .def("export_path", &WarehouseEngine::export_full_path_from_medicaments_with_style, "exporte le path depuis une liste de medicament ids");
+        .def("export_path", &WarehouseEngine::export_full_path_from_medicaments_with_style, "exporte le path depuis une liste de medicament ids")
+        .def("get_cumulative_distances", &WarehouseEngine::get_cumulative_distances, "Retourne la liste des distances cumulées");
 }

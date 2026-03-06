@@ -246,3 +246,49 @@ void WarehouseEngine::load_files()
     load_locations(base_path + "locations.json");
     load_medicament_mapping(base_path + "medicament_locations.json");
 }
+
+std::vector<double> WarehouseEngine::get_cumulative_distances(const std::vector<int> &medicament_ids)
+{
+    std::vector<int> item_indices;
+    std::unordered_set<int> visited;
+    for (int med_id : medicament_ids)
+    {
+        int loc_id = medicament_to_location.at(med_id);
+        int node_id = location_to_node.at(loc_id);
+        int matrix_index = node_to_matrix_index.at(node_id);
+        if (visited.insert(matrix_index).second)
+        {
+            item_indices.push_back(matrix_index);
+        }
+    }
+
+    std::vector<double> cumulative;
+    double current_total = 0.0;
+    cumulative.push_back(0.0); // Distance au START
+
+    int start_idx = 0;
+    int end_idx = matrix_nodes.size() - 1;
+
+    if (item_indices.empty())
+    {
+        cumulative.push_back(distance_matrix[start_idx][end_idx]);
+        return cumulative;
+    }
+
+    // Distance START -> Premier item
+    current_total += distance_matrix[start_idx][item_indices[0]];
+    cumulative.push_back(current_total);
+
+    // Distances entre items
+    for (size_t i = 0; i + 1 < item_indices.size(); ++i)
+    {
+        current_total += distance_matrix[item_indices[i]][item_indices[i + 1]];
+        cumulative.push_back(current_total);
+    }
+
+    // Distance item final -> END
+    current_total += distance_matrix[item_indices.back()][end_idx];
+    cumulative.push_back(current_total);
+
+    return cumulative;
+}
