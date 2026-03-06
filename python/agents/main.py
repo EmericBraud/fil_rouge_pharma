@@ -11,7 +11,7 @@ if __name__ == "__main__":
     print(f"[DEBUG] N_MEDICAMENTS {N_MEDICAMENTS}")
 
     N_AGENTS = 10
-    N_ITER = 120
+    N_ITER = 200
     COLLABORATIF = True
     N_POP = 30
     P_CROSS = 0.9

@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #0f0f1a;
+        overflow: hidden;
+        font-family: "Courier New", monospace;
+      }
+      #container {
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+      }
+      canvas {
+        display: block;
+      }
+
+      #ui {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        color: #a0f0c0;
+        font-size: 12px;
+        pointer-events: none;
+        text-shadow: 0 0 8px #00ff88;
+      }
+      #ui h3 {
+        font-size: 14px;
+        color: #00ff88;
+        margin-bottom: 6px;
+        letter-spacing: 2px;
+      }
+      #ui .step {
+        opacity: 0.6;
+      }
+      #ui .step.active {
+        opacity: 1;
+        color: #ffdd44;
+        text-shadow: 0 0 8px #ffaa00;
+      }
+      #ui .step.done {
+        opacity: 0.4;
+        color: #44ff88;
+      }
+
+      #controls {
+        position: absolute;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+      }
+      #controls button {
+        background: rgba(0, 255, 136, 0.15);
+        border: 1px solid #00ff88;
+        color: #00ff88;
+        padding: 8px 18px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: "Courier New", monospace;
+        font-size: 12px;
+        letter-spacing: 1px;
+        transition: background 0.2s;
+      }
+      #controls button:hover {
+        background: rgba(0, 255, 136, 0.3);
+      }
+
+      #speed-label {
+        position: absolute;
+        bottom: 56px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #a0f0c0;
+        font-size: 11px;
+        text-align: center;
+      }
+      #speed {
+        accent-color: #00ff88;
+        width: 120px;
+      }
+
+      #legend {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        color: #a0f0c0;
+        font-size: 11px;
+      }
+      .leg {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+
+    <div id="ui">
+      <h3>▶ TRAJET OPTIMAL</h3>
+      <div id="steps-list"></div>
+    </div>
+
+    <div id="legend">
+      <div class="leg">
+        <div class="dot" style="background: #00ff88"></div>
+        Départ (35)
+      </div>
+      <div class="leg">
+        <div class="dot" style="background: #ff4444"></div>
+        Médicament
+      </div>
+      <div class="leg">
+        <div class="dot" style="background: #ffdd44"></div>
+        Position actuelle
+      </div>
+      <div class="leg">
+        <div class="dot" style="background: #4488ff"></div>
+        Destination (0)
+      </div>
+      <div class="leg">
+        <div
+          class="dot"
+          style="background: #334455; border: 1px solid #556677"
+        ></div>
+        Rayon
+      </div>
+    </div>
+
+    <div id="speed-label">
+      Vitesse :
+      <input type="range" id="speed" min="0.5" max="5" step="0.5" value="2" />
+    </div>
+    <div id="controls">
+      <button id="btn-play">⏸ PAUSE</button>
+      <button id="btn-restart">↺ REJOUER</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+      // ─── Streamlit handshake ────────────────────────────────────────────────────
+      const Streamlit = {
+        setFrameHeight: (h) =>
+          window.parent.postMessage(
+            {
+              isStreamlitMessage: true,
+              type: "streamlit:setFrameHeight",
+              height: h,
+            },
+            "*",
+          ),
+      };
+      window.parent.postMessage(
+        {
+          isStreamlitMessage: true,
+          type: "streamlit:componentReady",
+          apiVersion: 1,
+        },
+        "*",
+      );
+
+      let appData = null;
+      window.addEventListener("message", (e) => {
+        if (e.data.type === "streamlit:render" && e.data.args) {
+          appData = e.data.args;
+          initScene(appData);
+        }
+      });
+      Streamlit.setFrameHeight(window.innerHeight);
+
+      // ─── Scene globals ──────────────────────────────────────────────────────────
+      let scene, camera, renderer, animId;
+      let walkerMesh, walkerLight;
+      let pathPoints3D = [];
+      let currentT = 0; // progress along path [0..pathPoints3D.length-1]
+      let playing = true;
+      let speedMult = 2;
+
+      const SCALE = 1.2; // world units per graph unit
+      const FLOOR_Y = 0;
+      const SHELF_H = 1.4;
+      const SHELF_D = 0.35;
+      const SHELF_W = 0.18;
+
+      // ─── Colour palette ─────────────────────────────────────────────────────────
+      const COL = {
+        floor: 0x1a1f2e,
+        floorLine: 0x2a3040,
+        shelf: 0x1e3a4a,
+        shelfEdge: 0x2a5570,
+        start: 0x00ff88,
+        end: 0x4488ff,
+        med: 0xff3333,
+        walker: 0xffdd44,
+        pathDone: 0x00cc66,
+        pathAhead: 0x334466,
+        ambient: 0x203040,
+      };
+
+      // ─── Main init ──────────────────────────────────────────────────────────────
+      function initScene(data) {
+        if (renderer) {
+          renderer.dispose();
+          document.getElementById("container").innerHTML = "";
+        }
+        if (animId) cancelAnimationFrame(animId);
+
+        const pos = data.pos; // { "1": [x,y], ... }
+        const edges = data.edges; // [[u,v], ...]
+        const path = data.full_path; // [nodeId, nodeId, ...]  (ints, may include med offsets)
+        const meds = data.meds || []; // [{id,u,v,dist_u,dist_v}, ...]
+        const OFFSET = 35;
+
+        // Build order list UI
+        buildStepsUI(data.order_ids || [], meds);
+
+        // ── Three.js setup ──────────────────────────────────────────────────────
+        scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0a0e1a, 0.045);
+        scene.background = new THREE.Color(0x0a0e1a);
+
+        const W = window.innerWidth,
+          H = window.innerHeight;
+        // Isometric-ish camera
+        camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 200);
+        camera.position.set(6, 18, 16);
+        camera.lookAt(6, 0, 3);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(W, H);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById("container").appendChild(renderer.domElement);
+
+        // ── Lights ──────────────────────────────────────────────────────────────
+        const ambient = new THREE.AmbientLight(COL.ambient, 1.2);
+        scene.add(ambient);
+
+        const dirLight = new THREE.DirectionalLight(0x8ab8d0, 0.8);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        // Walker spotlight
+        walkerLight = new THREE.PointLight(0xffdd44, 2.5, 6);
+        scene.add(walkerLight);
+
+        // ── Floor ───────────────────────────────────────────────────────────────
+        const floorGeo = new THREE.PlaneGeometry(30, 25);
+        const floorMat = new THREE.MeshLambertMaterial({ color: COL.floor });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.set(5, -0.01, 3.5);
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Grid lines on floor
+        const gridHelper = new THREE.GridHelper(
+          30,
+          30,
+          COL.floorLine,
+          COL.floorLine,
+        );
+        gridHelper.position.set(5, 0, 3.5);
+        gridHelper.material.opacity = 0.3;
+        gridHelper.material.transparent = true;
+        scene.add(gridHelper);
+
+        // ── Convert graph coords → 3D ────────────────────────────────────────────
+        // Graph: x ∈ [0..8.5], y ∈ [-2..9.5]  →  3D: x=x*SCALE, z=-y*SCALE
+        function toWorld(gx, gy) {
+          return new THREE.Vector3(gx * SCALE, FLOOR_Y, -gy * SCALE);
+        }
+
+        function nodeWorld(nid) {
+          const p = pos[String(nid)];
+          return p ? toWorld(p[0], p[1]) : null;
+        }
+
+        // ── Detect shelf segments (long straight horizontal/vertical edge groups) ──
+        // We draw shelf boxes alongside edges that form the "rack" structure
+        // Edges connecting nodes with same x or same y = aisle edges → draw shelves beside them
+        const shelfEdges = edges.filter(([u, v]) => {
+          const pu = pos[String(u)],
+            pv = pos[String(v)];
+          if (!pu || !pv) return false;
+          const dx = Math.abs(pu[0] - pv[0]);
+          const dy = Math.abs(pu[1] - pv[1]);
+          // Vertical aisle edges (same x, adjacent y nodes on the main racks)
+          return dx < 0.01 && dy <= 1.5;
+        });
+
+        // Draw shelf units alongside vertical aisle edges
+        shelfEdges.forEach(([u, v]) => {
+          const pu = pos[String(u)],
+            pv = pos[String(v)];
+          if (!pu || !pv) return;
+          const wx = ((pu[0] + pv[0]) / 2) * SCALE;
+          const wz = (-(pu[1] + pv[1]) / 2) * SCALE;
+          const segLen = Math.abs(pu[1] - pv[1]) * SCALE;
+
+          // Only draw shelves for the main rack columns (x ≈ 6 or x ≈ 8.5)
+          if (Math.abs(pu[0] - 6) < 0.1 || Math.abs(pu[0] - 8.5) < 0.1) {
+            [-1, 1].forEach((side) => {
+              const shelfGeo = new THREE.BoxGeometry(
+                SHELF_D,
+                SHELF_H,
+                segLen * 0.95,
+              );
+              const shelfMat = new THREE.MeshLambertMaterial({
+                color: COL.shelf,
+                emissive: COL.shelf,
+                emissiveIntensity: 0.1,
+              });
+              const shelf = new THREE.Mesh(shelfGeo, shelfMat);
+              shelf.position.set(
+                wx + side * (SHELF_W + SHELF_D / 2),
+                SHELF_H / 2,
+                wz,
+              );
+              shelf.castShadow = true;
+              shelf.receiveShadow = true;
+              scene.add(shelf);
+
+              // Shelf edge glow
+              const edgeGeo = new THREE.EdgesGeometry(shelfGeo);
+              const edgeMat = new THREE.LineBasicMaterial({
+                color: COL.shelfEdge,
+                transparent: true,
+                opacity: 0.5,
+              });
+              const edgeMesh = new THREE.LineSegments(edgeGeo, edgeMat);
+              shelf.add(edgeMesh);
+
+              // Shelf dividers
+              for (let s = -segLen / 2; s < segLen / 2; s += 0.5) {
+                const divGeo = new THREE.BoxGeometry(
+                  SHELF_D + 0.02,
+                  0.04,
+                  0.02,
+                );
+                const divMat = new THREE.MeshLambertMaterial({
+                  color: COL.shelfEdge,
+                });
+                const div = new THREE.Mesh(divGeo, divMat);
+                div.position.set(0, (s / segLen) * SHELF_H * 0.6, s);
+                shelf.add(div);
+              }
+            });
+          }
+        });
+
+        // ── Path line (ground level) ────────────────────────────────────────────
+        // Compute med node positions
+        const medPos = {};
+        meds.forEach((m) => {
+          const pu = pos[String(m.u)],
+            pv = pos[String(m.v)];
+          if (!pu || !pv) return;
+          const total = m.dist_u + m.dist_v;
+          medPos[m.id + OFFSET] = [
+            (m.dist_v * pu[0] + m.dist_u * pv[0]) / total,
+            (m.dist_v * pu[1] + m.dist_u * pv[1]) / total,
+          ];
+        });
+
+        function getNodePos(nid) {
+          if (medPos[nid]) return medPos[nid];
+          const p = pos[String(nid)];
+          return p || null;
+        }
+
+        pathPoints3D = path
+          .map((nid) => {
+            const p = getNodePos(nid);
+            return p
+              ? new THREE.Vector3(p[0] * SCALE, 0.05, -p[1] * SCALE)
+              : null;
+          })
+          .filter(Boolean);
+
+        // Draw path tube (ahead = dim, done = bright — updated in animate)
+        // We'll use a line that we rebuild each frame via geometry update
+        // For performance, draw two overlapping lines
+        const pathGeoAhead = new THREE.BufferGeometry().setFromPoints(
+          pathPoints3D,
+        );
+        const pathMatAhead = new THREE.LineBasicMaterial({
+          color: COL.pathAhead,
+          transparent: true,
+          opacity: 0.3,
+          linewidth: 1,
+        });
+        scene.add(new THREE.Line(pathGeoAhead, pathMatAhead));
+
+        // Done path line — updated each frame
+        const doneLineMat = new THREE.LineBasicMaterial({
+          color: COL.pathDone,
+          transparent: true,
+          opacity: 0.9,
+          linewidth: 2,
+        });
+        const doneLineGeo = new THREE.BufferGeometry();
+        const doneLine = new THREE.Line(doneLineGeo, doneLineMat);
+        scene.add(doneLine);
+
+        // ── Node spheres ────────────────────────────────────────────────────────
+        Object.entries(pos).forEach(([nid, [gx, gy]]) => {
+          const id = parseInt(nid);
+          const isStart = id === 35,
+            isEnd = id === 0;
+          const color = isStart ? COL.start : isEnd ? COL.end : 0x334455;
+          const size = isStart || isEnd ? 0.28 : 0.14;
+
+          const geo = new THREE.SphereGeometry(size, 12, 8);
+          const mat = new THREE.MeshLambertMaterial({
+            color,
+            emissive: color,
+            emissiveIntensity: isStart || isEnd ? 0.6 : 0.1,
+          });
+          const sphere = new THREE.Mesh(geo, mat);
+          sphere.position.copy(toWorld(gx, gy));
+          sphere.position.y = 0.05;
+          scene.add(sphere);
+        });
+
+        // ── Med node spheres ────────────────────────────────────────────────────
+        meds.forEach((m) => {
+          const p = medPos[m.id + OFFSET];
+          if (!p) return;
+          const geo = new THREE.SphereGeometry(0.22, 12, 8);
+          const mat = new THREE.MeshLambertMaterial({
+            color: COL.med,
+            emissive: COL.med,
+            emissiveIntensity: 0.5,
+          });
+          const sphere = new THREE.Mesh(geo, mat);
+          sphere.position.set(p[0] * SCALE, 0.22, -p[1] * SCALE);
+          scene.add(sphere);
+
+          // Glow ring
+          const ringGeo = new THREE.RingGeometry(0.28, 0.38, 20);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: COL.med,
+            transparent: true,
+            opacity: 0.4,
+            side: THREE.DoubleSide,
+          });
+          const ring = new THREE.Mesh(ringGeo, ringMat);
+          ring.rotation.x = -Math.PI / 2;
+          ring.position.set(p[0] * SCALE, 0.02, -p[1] * SCALE);
+          scene.add(ring);
+        });
+
+        // ── Walker (capsule-like: cylinder + two spheres) ────────────────────────
+        const walkerGroup = new THREE.Group();
+        const bodyGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.5, 10);
+        const bodyMat = new THREE.MeshLambertMaterial({
+          color: COL.walker,
+          emissive: COL.walker,
+          emissiveIntensity: 0.4,
+        });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.y = 0.35;
+        walkerGroup.add(body);
+
+        const headGeo = new THREE.SphereGeometry(0.15, 12, 8);
+        const head = new THREE.Mesh(headGeo, bodyMat);
+        head.position.y = 0.72;
+        walkerGroup.add(head);
+
+        // Legs (animated)
+        const legGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.25, 8);
+        const legMat = new THREE.MeshLambertMaterial({ color: 0xcc9900 });
+        const legL = new THREE.Mesh(legGeo, legMat);
+        legL.position.set(-0.08, 0.1, 0);
+        const legR = new THREE.Mesh(legGeo, legMat.clone());
+        legR.position.set(0.08, 0.1, 0);
+        walkerGroup.add(legL, legR);
+
+        walkerMesh = walkerGroup;
+        if (pathPoints3D.length > 0) {
+          walkerMesh.position.copy(pathPoints3D[0]);
+          walkerMesh.position.y = 0;
+        }
+        scene.add(walkerMesh);
+        walkerLight.position.copy(walkerMesh.position);
+        walkerLight.position.y = 1.5;
+
+        // ── Ceiling light fixtures ───────────────────────────────────────────────
+        [
+          [3, 8],
+          [6, 4],
+          [6, 0],
+          [6, -2],
+          [8.5, 4],
+          [8.5, 0],
+        ].forEach(([gx, gy]) => {
+          const fix = new THREE.PointLight(0x8ab8d0, 0.4, 5);
+          fix.position.set(gx * SCALE, 3.5, -gy * SCALE);
+          scene.add(fix);
+          const bulbGeo = new THREE.SphereGeometry(0.06, 6, 4);
+          const bulbMat = new THREE.MeshBasicMaterial({ color: 0xaaccff });
+          scene
+            .add(new THREE.Mesh(bulbGeo, bulbMat))
+            .position.copy(fix.position);
+        });
+
+        // ── Animation state ──────────────────────────────────────────────────────
+        currentT = 0;
+        playing = true;
+
+        // ── Animate ─────────────────────────────────────────────────────────────
+        const clock = new THREE.Clock();
+        let legPhase = 0;
+
+        function animate() {
+          animId = requestAnimationFrame(animate);
+          const dt = clock.getDelta();
+
+          if (playing && pathPoints3D.length > 1) {
+            speedMult = parseFloat(document.getElementById("speed").value);
+            currentT = Math.min(
+              currentT + dt * speedMult,
+              pathPoints3D.length - 1,
+            );
+
+            // Interpolate walker position
+            const idx = Math.floor(currentT);
+            const frac = currentT - idx;
+            const pA = pathPoints3D[Math.min(idx, pathPoints3D.length - 1)];
+            const pB = pathPoints3D[Math.min(idx + 1, pathPoints3D.length - 1)];
+            const wPos = pA.clone().lerp(pB, frac);
+            walkerMesh.position.copy(wPos);
+            walkerMesh.position.y = 0;
+
+            // Face direction of travel
+            if (pB && !pA.equals(pB)) {
+              const dir = pB.clone().sub(pA).normalize();
+              walkerMesh.rotation.y = Math.atan2(dir.x, dir.z);
+            }
+
+            // Leg swing animation
+            legPhase += dt * speedMult * 5;
+            walkerGroup.children[2].rotation.x = Math.sin(legPhase) * 0.5;
+            walkerGroup.children[3].rotation.x = -Math.sin(legPhase) * 0.5;
+
+            // Walker light follows
+            walkerLight.position.copy(walkerMesh.position);
+            walkerLight.position.y = 1.5;
+
+            // Update done path line
+            const donePoints = pathPoints3D.slice(0, idx + 2).map((p, i) => {
+              if (i === idx + 1) return pA.clone().lerp(pB, frac);
+              return p;
+            });
+            if (donePoints.length >= 2) {
+              doneLineGeo.setFromPoints(donePoints);
+            }
+
+            // Update step UI
+            updateStepsUI(path, idx, OFFSET, meds);
+
+            if (currentT >= pathPoints3D.length - 1) playing = false;
+          }
+
+          // Gentle camera orbit
+          const t2 = Date.now() * 0.0001;
+          camera.position.x = 6 + Math.sin(t2) * 2;
+          camera.position.z = 16 + Math.cos(t2 * 0.7) * 2;
+          camera.lookAt(
+            walkerMesh ? walkerMesh.position.x : 6,
+            1,
+            walkerMesh ? walkerMesh.position.z : 3,
+          );
+
+          renderer.render(scene, camera);
+        }
+        animate();
+
+        // ── Controls ─────────────────────────────────────────────────────────────
+        document.getElementById("btn-play").onclick = () => {
+          playing = !playing;
+          document.getElementById("btn-play").textContent = playing
+            ? "⏸ PAUSE"
+            : "▶ PLAY";
+        };
+        document.getElementById("btn-restart").onclick = () => {
+          currentT = 0;
+          playing = true;
+          document.getElementById("btn-play").textContent = "⏸ PAUSE";
+          doneLineGeo.setFromPoints([pathPoints3D[0]]);
+        };
+
+        window.addEventListener("resize", () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+      }
+
+      // ─── Steps UI ───────────────────────────────────────────────────────────────
+      function buildStepsUI(orderIds, meds) {
+        const medMap = {};
+        meds.forEach((m) => {
+          medMap[m.id] = m;
+        });
+        const list = document.getElementById("steps-list");
+        list.innerHTML = "";
+        const steps = [
+          "🟢 DÉPART (35)",
+          ...orderIds.map((id) => {
+            const m = medMap[id];
+            return `💊 Med ${id}` + (m ? ` (${m.u}-${m.v})` : "");
+          }),
+          "🔵 ARRIVÉE (0)",
+        ];
+        steps.forEach((s, i) => {
+          const div = document.createElement("div");
+          div.className = "step";
+          div.id = `step-${i}`;
+          div.textContent = s;
+          list.appendChild(div);
+        });
+      }
+
+      function updateStepsUI(path, currentIdx, OFFSET, meds) {
+        const medIds = meds.map((m) => m.id + OFFSET);
+        // Which med nodes have been visited?
+        const visited = new Set(path.slice(0, currentIdx + 1));
+        const stepEls = document.querySelectorAll(".step");
+        stepEls.forEach((el, i) => {
+          el.classList.remove("active", "done");
+        });
+        // Step 0 = start always done
+        if (stepEls[0]) {
+          stepEls[0].classList.add(currentIdx > 0 ? "done" : "active");
+        }
+        // Steps 1..n = meds
+        medIds.forEach((nid, i) => {
+          const el = stepEls[i + 1];
+          if (!el) return;
+          if (visited.has(nid)) el.classList.add("done");
+        });
+        // Last step = end
+        const lastEl = stepEls[stepEls.length - 1];
+        if (lastEl && visited.has(0)) lastEl.classList.add("done");
+      }
+    </script>
+  </body>
+</html>

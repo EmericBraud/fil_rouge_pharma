@@ -2,7 +2,9 @@ import json
 import os
 import requests
 import streamlit as st
-from st_cytoscape import cytoscape
+import streamlit.components.v1 as components
+
+from pharma3d import render_3d_pharmacy
 
 from data_file import EDGES, POS, generate_anim_file
 
@@ -13,24 +15,79 @@ BUILD_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "build", "data")
 LOCATIONS_PATH = os.path.join(BUILD_DATA_DIR, "locations.json")
 MEDICAMENT_LOCATIONS_PATH = os.path.join(BUILD_DATA_DIR, "medicament_locations.json")
 
-# À remplacer par le vrai endpoint quand disponible
 OPTIMIZE_API_URL = "http://localhost:8000/optimize"
+
+# Composant custom — Streamlit sert cyto_component/index.html en statique,
+# pas besoin de serveur Node.
+_COMPONENT_DIR = os.path.join(os.path.dirname(__file__), "cyto_component")
+cyto_graph = components.declare_component("cyto_graph", path=_COMPONENT_DIR)
 
 st.set_page_config(page_title="Pharma Flow Optimizer", layout="wide")
 
 if "medications" not in st.session_state:
     st.session_state.medications = []
-if "cytoscape_key" not in st.session_state:
-    st.session_state.cytoscape_key = 0
+if "last_result_id" not in st.session_state:
+    # Garde trace du dernier médicament ajouté pour éviter les doublons
+    # lors des reruns Streamlit
+    st.session_state.last_result_id = None
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-def save_json_files(medications: list) -> None:
-    """Sauvegarde locations.json et medicament_locations.json dans ../build/data/"""
-    os.makedirs(BUILD_DATA_DIR, exist_ok=True)
+def build_elements() -> list:
+    elements = []
 
+    for n in POS:
+        elements.append(
+            {
+                "data": {"id": str(n), "label": str(n)},
+                "position": {"x": POS[n][0] * 80, "y": -POS[n][1] * 80},
+                "classes": "special-node" if n in [0, 35] else "regular-node",
+                "grabbable": False,
+            }
+        )
+
+    for u, v in EDGES:
+        elements.append(
+            {
+                "data": {"source": str(u), "target": str(v), "id": f"e{u}-{v}"},
+                "classes": "regular-edge",
+                "grabbable": False,
+            }
+        )
+
+    for m in st.session_state.medications:
+        m_node = f"M{m['id']}"
+        pu, pv = POS[m["u"]], POS[m["v"]]
+        mx = (m["dist_v"] * pu[0] + m["dist_u"] * pv[0]) / (m["dist_u"] + m["dist_v"])
+        my = (m["dist_v"] * pu[1] + m["dist_u"] * pv[1]) / (m["dist_u"] + m["dist_v"])
+        elements.append(
+            {
+                "data": {"id": m_node, "label": str(m["id"])},
+                "position": {"x": mx * 80, "y": -my * 80},
+                "classes": "med-node",
+                "grabbable": False,
+            }
+        )
+        for neighbor in [m["u"], m["v"]]:
+            elements.append(
+                {
+                    "data": {
+                        "source": str(neighbor),
+                        "target": m_node,
+                        "id": f"e{neighbor}-{m_node}",
+                    },
+                    "classes": "med-edge",
+                    "grabbable": False,
+                }
+            )
+
+    return elements
+
+
+def save_json_files(medications: list) -> None:
+    os.makedirs(BUILD_DATA_DIR, exist_ok=True)
     locations = [
         {
             "id": m["id"],
@@ -41,25 +98,16 @@ def save_json_files(medications: list) -> None:
         }
         for m in medications
     ]
-
     medicament_locations = [
         {"medicament_id": m["id"], "location_id": m["id"]} for m in medications
     ]
-
     with open(LOCATIONS_PATH, "w", encoding="utf-8") as f:
         json.dump(locations, f, indent=2, ensure_ascii=False)
-
     with open(MEDICAMENT_LOCATIONS_PATH, "w", encoding="utf-8") as f:
         json.dump(medicament_locations, f, indent=2, ensure_ascii=False)
 
 
 def call_optimize_api(medications: list) -> list:
-    """
-    Appelle l'API d'optimisation et retourne l'ordre optimal des IDs médicaments.
-    Placeholder : retourne l'ordre d'insertion tant que l'endpoint n'est pas défini.
-    Remplace OPTIMIZE_API_URL par le vrai endpoint quand disponible.
-    Format attendu en réponse : { "order": [2, 1, 3, ...] }
-    """
     payload = {
         "locations": [
             {
@@ -72,16 +120,13 @@ def call_optimize_api(medications: list) -> list:
             for m in medications
         ]
     }
-
     try:
         response = requests.post(OPTIMIZE_API_URL, json=payload, timeout=10)
         response.raise_for_status()
-        data = response.json()
-        return data["order"]  # ex: [3, 1, 2, ...]
+        return response.json()["order"]
     except requests.exceptions.ConnectionError:
         st.warning(
-            f"⚠️ API non disponible ({OPTIMIZE_API_URL}). "
-            "Utilisation de l'ordre d'insertion par défaut."
+            f"⚠️ API non disponible ({OPTIMIZE_API_URL}). Ordre par défaut utilisé."
         )
         return [m["id"] for m in medications]
     except Exception as e:
@@ -96,211 +141,76 @@ st.title("🧪 Pharma Path Interactive Optimizer")
 col1, col2 = st.columns([2, 1])
 
 with col2:
-    st.subheader("📦 Ajouter un Médicament")
-    with st.form("add_med"):
-        m_id = st.number_input(
-            "ID Médicament", min_value=1, value=len(st.session_state.medications) + 1
-        )
-        edge_choice = st.selectbox(
-            "Emplacement (Arête)", [f"{e[0]}-{e[1]}" for e in EDGES]
-        )
-        u_val, v_val = map(int, edge_choice.split("-"))
-        d_u = st.slider("Distance de U", 10, 1000, 500)
-        d_v = st.slider("Distance de V", 10, 1000, 500)
-        if st.form_submit_button("Ajouter au Graph"):
-            st.session_state.medications.append(
-                {"id": m_id, "u": u_val, "v": v_val, "dist_u": d_u, "dist_v": d_v}
-            )
-            st.session_state.cytoscape_key += 1
-            st.rerun()
-
-    if st.session_state.medications:
-        st.divider()
-        st.subheader("📋 Liste")
+    st.subheader("📋 Médicaments ajoutés")
+    if not st.session_state.medications:
+        st.caption("Aucun médicament — cliquez sur une arête du graphe.")
+    else:
         for m in st.session_state.medications:
             st.text(
                 f"Med {m['id']} — Arête {m['u']}-{m['v']} | U:{m['dist_u']} V:{m['dist_v']}"
             )
         if st.button("🗑️ Vider tout"):
             st.session_state.medications = []
-            st.session_state.cytoscape_key += 1
+            st.session_state.last_result_id = None
             st.rerun()
 
-# ---------------------------------------------------------------------------
-# Graph
-# ---------------------------------------------------------------------------
 with col1:
-    st.subheader("🗺️ Visualisation Interactive")
-    elements = []
+    st.subheader("🗺️ Cliquez sur une arête pour y placer un médicament")
 
-    # Nœuds principaux
-    for n in POS:
-        elements.append(
-            {
-                "data": {"id": str(n), "label": str(n)},
-                "position": {"x": POS[n][0] * 80, "y": -POS[n][1] * 80},
-                "classes": "special-node" if n in [0, 35] else "regular-node",
-                "selectable": False,
-                "grabbable": False,
-            }
-        )
+    result = cyto_graph(
+        elements=build_elements(),
+        next_med_id=len(st.session_state.medications) + 1,
+        key="cyto_main",
+    )
 
-    # Arêtes principales
-    for u, v in EDGES:
-        elements.append(
-            {
-                "data": {"source": str(u), "target": str(v), "id": f"e{u}-{v}"},
-                "classes": "regular-edge",
-                "selectable": False,
-                "grabbable": False,
-            }
-        )
-
-    # Nœuds médicaments et leurs arêtes
-    for m in st.session_state.medications:
-        m_node = f"M{m['id']}"
-        pu, pv = POS[m["u"]], POS[m["v"]]
-        mx = (m["dist_v"] * pu[0] + m["dist_u"] * pv[0]) / (m["dist_u"] + m["dist_v"])
-        my = (m["dist_v"] * pu[1] + m["dist_u"] * pv[1]) / (m["dist_u"] + m["dist_v"])
-
-        elements.append(
-            {
-                "data": {"id": m_node, "label": str(m["id"])},
-                "position": {"x": mx * 80, "y": -my * 80},
-                "classes": "med-node",
-                "selectable": False,
-                "grabbable": False,
-            }
-        )
-        for neighbor in [m["u"], m["v"]]:
-            elements.append(
+    # result est renvoyé à chaque rerun — on filtre les doublons avec last_result_id
+    if result and isinstance(result, dict) and result.get("action") == "add_medication":
+        # Clé unique = timestamp envoyé par le JS — insensible aux valeurs identiques
+        result_fingerprint = result.get("ts")
+        if result_fingerprint != st.session_state.last_result_id:
+            st.session_state.last_result_id = result_fingerprint
+            st.session_state.medications.append(
                 {
-                    "data": {
-                        "source": str(neighbor),
-                        "target": m_node,
-                        "id": f"e{neighbor}-{m_node}",
-                    },
-                    "classes": "med-edge",
-                    "selectable": False,
-                    "grabbable": False,
+                    "id": result["id"],
+                    "u": result["u"],
+                    "v": result["v"],
+                    "dist_u": result["dist_u"],
+                    "dist_v": result["dist_v"],
                 }
             )
-
-    stylesheet = [
-        {
-            "selector": "node.regular-node",
-            "style": {
-                "background-color": "#FFFFFF",
-                "border-width": 2,
-                "border-color": "#000000",
-                "width": 35,
-                "height": 35,
-                "label": "data(label)",
-                "text-valign": "center",
-                "text-halign": "center",
-                "font-size": 12,
-                "color": "#000000",
-                "shape": "ellipse",
-            },
-        },
-        {
-            "selector": "node.special-node",
-            "style": {
-                "background-color": "#32CD32",
-                "border-width": 2,
-                "border-color": "#000000",
-                "width": 35,
-                "height": 35,
-                "label": "data(label)",
-                "text-valign": "center",
-                "text-halign": "center",
-                "font-size": 12,
-                "color": "#000000",
-                "shape": "ellipse",
-            },
-        },
-        {
-            "selector": "node.med-node",
-            "style": {
-                "background-color": "#FF0000",
-                "border-width": 2,
-                "border-color": "#000000",
-                "width": 25,
-                "height": 25,
-                "label": "data(label)",
-                "text-valign": "center",
-                "text-halign": "center",
-                "font-size": 10,
-                "color": "#FFFFFF",
-                "shape": "rectangle",
-            },
-        },
-        {
-            "selector": "edge.regular-edge",
-            "style": {
-                "line-color": "#444444",
-                "width": 2,
-                "curve-style": "bezier",
-                "target-arrow-shape": "none",
-            },
-        },
-        {
-            "selector": "edge.med-edge",
-            "style": {
-                "line-color": "#FF0000",
-                "width": 3,
-                "curve-style": "bezier",
-                "target-arrow-shape": "none",
-            },
-        },
-    ]
-
-    layout = {"name": "preset", "fit": True, "padding": 30, "animate": False}
-
-    cytoscape(
-        elements=elements,
-        stylesheet=stylesheet,
-        layout=layout,
-        height="600px",
-        user_zooming_enabled=True,
-        user_panning_enabled=True,
-        key=f"graph_view_{st.session_state.cytoscape_key}",
-    )
+            st.rerun()
 
 # ---------------------------------------------------------------------------
 # Lancer l'optimisation
 # ---------------------------------------------------------------------------
-if st.button("🚀 Lancer l'optimisation"):
+st.divider()
+if st.button("🚀 Lancer l'optimisation", type="primary"):
     if not st.session_state.medications:
         st.error("Ajoutez au moins un médicament !")
     else:
-        # 1. Sauvegarde des JSON
         with st.spinner("💾 Sauvegarde des fichiers JSON..."):
             try:
                 save_json_files(st.session_state.medications)
                 st.success(
-                    f"Fichiers sauvegardés :\n"
-                    f"- `{LOCATIONS_PATH}`\n"
-                    f"- `{MEDICAMENT_LOCATIONS_PATH}`"
+                    f"Fichiers sauvegardés :\n- `{LOCATIONS_PATH}`\n- `{MEDICAMENT_LOCATIONS_PATH}`"
                 )
             except Exception as e:
                 st.error(f"Erreur lors de la sauvegarde : {e}")
                 st.stop()
 
-        # 2. Appel API pour l'ordre optimal
         with st.spinner("🔗 Appel API d'optimisation..."):
             ordre_optimal = call_optimize_api(st.session_state.medications)
             st.info(f"Ordre optimal reçu : {ordre_optimal}")
 
-        # 3. Génération de l'animation
-        with st.spinner("🎬 Génération de l'animation..."):
+        st.subheader("🏥 Simulation 3D du trajet optimal")
+        render_3d_pharmacy(st.session_state.medications, ordre_optimal)
+
+        with st.spinner("🎬 Génération du GIF..."):
             video_path = generate_anim_file(st.session_state.medications, ordre_optimal)
             if video_path:
-                st.subheader("📽️ Simulation du trajet optimal")
+                st.subheader("📽️ Vue 2D — GIF animé")
                 st.image(video_path)
                 with open(video_path, "rb") as f:
-                    st.download_button(
-                        "💾 Télécharger l'animation", f, "trajet_pharma.gif"
-                    )
+                    st.download_button("💾 Télécharger le GIF", f, "trajet_pharma.gif")
             else:
-                st.error("Erreur lors de la génération de l'animation.")
+                st.error("Erreur lors de la génération du GIF.")

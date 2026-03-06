@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: sans-serif;
+        background: transparent;
+        overflow: hidden;
+      }
+
+      #cy {
+        width: 100%;
+        height: 580px;
+        background: #f9f9f9;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+      }
+
+      #popover {
+        display: none;
+        position: absolute;
+        z-index: 999;
+        background: #fff;
+        border: 2px solid #ff8c00;
+        border-radius: 10px;
+        padding: 14px 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        min-width: 270px;
+        pointer-events: all;
+      }
+      #popover.visible {
+        display: block;
+      }
+      #popover h4 {
+        color: #ff8c00;
+        font-size: 14px;
+        margin-bottom: 10px;
+      }
+
+      .field {
+        margin-bottom: 8px;
+      }
+      .field label {
+        display: block;
+        font-size: 11px;
+        color: #666;
+        margin-bottom: 2px;
+      }
+      .field input[type="number"] {
+        width: 65px;
+        padding: 3px 6px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+      .field input[type="range"] {
+        width: 100%;
+        accent-color: #ff8c00;
+      }
+      .range-val {
+        font-size: 12px;
+        color: #333;
+        font-weight: 600;
+      }
+
+      .btns {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .btns button {
+        flex: 1;
+        padding: 7px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      #btn-ok {
+        background: #ff8c00;
+        color: #fff;
+      }
+      #btn-ok:hover {
+        background: #d97600;
+      }
+      #btn-no {
+        background: #eee;
+        color: #333;
+      }
+      #btn-no:hover {
+        background: #ddd;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="cy"></div>
+
+    <div id="popover">
+      <h4 id="pop-title">Arête</h4>
+      <div class="field">
+        <label>ID Médicament</label>
+        <input type="number" id="med-id" min="1" value="1" />
+      </div>
+      <div class="field">
+        <label
+          >Distance de <span id="lbl-u">U</span> :
+          <span id="val-u" class="range-val">500</span></label
+        >
+        <input
+          type="range"
+          id="dist-u"
+          min="10"
+          max="1000"
+          value="500"
+          oninput="document.getElementById('val-u').textContent = this.value"
+        />
+      </div>
+      <div class="field">
+        <label
+          >Distance de <span id="lbl-v">V</span> :
+          <span id="val-v" class="range-val">500</span></label
+        >
+        <input
+          type="range"
+          id="dist-v"
+          min="10"
+          max="1000"
+          value="500"
+          oninput="document.getElementById('val-v').textContent = this.value"
+        />
+      </div>
+      <div class="btns">
+        <button id="btn-ok">✅ Confirmer</button>
+        <button id="btn-no">✖ Annuler</button>
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+    <script>
+      // ── API Streamlit Components ─────────────────────────────────────────────────
+      // Streamlit attend exactement ce handshake pour activer la communication
+      function sendValue(value) {
+        Streamlit.setComponentValue(value);
+      }
+
+      // Objet Streamlit minimal compatible avec declare_component(path=...)
+      const Streamlit = {
+        setComponentValue: function (value) {
+          window.parent.postMessage(
+            {
+              isStreamlitMessage: true,
+              type: "streamlit:setComponentValue",
+              value: value,
+            },
+            "*",
+          );
+        },
+        setFrameHeight: function (height) {
+          window.parent.postMessage(
+            {
+              isStreamlitMessage: true,
+              type: "streamlit:setFrameHeight",
+              height: height,
+            },
+            "*",
+          );
+        },
+        _ready: false,
+      };
+
+      // Réception des données depuis Python (render)
+      window.addEventListener("message", function (e) {
+        if (e.data.type === "streamlit:render") {
+          const args = e.data.args || {};
+          if (!Streamlit._ready) {
+            Streamlit._ready = true;
+          }
+          initOrUpdate(args);
+        }
+      });
+
+      // Signal "prêt" — Streamlit envoie les args après réception de ce message
+      window.parent.postMessage(
+        {
+          isStreamlitMessage: true,
+          type: "streamlit:componentReady",
+          apiVersion: 1,
+        },
+        "*",
+      );
+
+      // Ajuste la hauteur de l'iframe
+      Streamlit.setFrameHeight(600);
+
+      // ── Cytoscape ────────────────────────────────────────────────────────────────
+      let cy = null;
+      let selectedEdge = null;
+      let nextMedId = 1;
+
+      function initOrUpdate(args) {
+        const elements = args.elements || [];
+        nextMedId = args.next_med_id || 1;
+
+        if (cy) {
+          cy.destroy();
+          cy = null;
+        }
+
+        cy = cytoscape({
+          container: document.getElementById("cy"),
+          elements: elements,
+          style: [
+            {
+              selector: "node.regular-node",
+              style: {
+                "background-color": "#FFFFFF",
+                "border-width": 2,
+                "border-color": "#000000",
+                width: 35,
+                height: 35,
+                label: "data(label)",
+                "text-valign": "center",
+                "text-halign": "center",
+                "font-size": 12,
+                color: "#000000",
+                shape: "ellipse",
+              },
+            },
+            {
+              selector: "node.special-node",
+              style: {
+                "background-color": "#32CD32",
+                "border-width": 2,
+                "border-color": "#000000",
+                width: 35,
+                height: 35,
+                label: "data(label)",
+                "text-valign": "center",
+                "text-halign": "center",
+                "font-size": 12,
+                color: "#000000",
+                shape: "ellipse",
+              },
+            },
+            {
+              selector: "node.med-node",
+              style: {
+                "background-color": "#FF0000",
+                "border-width": 2,
+                "border-color": "#000000",
+                width: 25,
+                height: 25,
+                label: "data(label)",
+                "text-valign": "center",
+                "text-halign": "center",
+                "font-size": 10,
+                color: "#FFFFFF",
+                shape: "rectangle",
+              },
+            },
+            {
+              selector: "edge.regular-edge",
+              style: {
+                "line-color": "#444444",
+                width: 3,
+                "curve-style": "bezier",
+                "target-arrow-shape": "none",
+              },
+            },
+            {
+              selector: "edge.regular-edge.highlighted",
+              style: {
+                "line-color": "#FF8C00",
+                width: 6,
+              },
+            },
+            {
+              selector: "edge.med-edge",
+              style: {
+                "line-color": "#FF0000",
+                width: 2,
+                "curve-style": "bezier",
+                "target-arrow-shape": "none",
+              },
+            },
+          ],
+          layout: { name: "preset", fit: true, padding: 30 },
+          userZoomingEnabled: false,
+          userPanningEnabled: true,
+          boxSelectionEnabled: false,
+        });
+
+        // Clic sur arête principale → affiche le popover
+        cy.on("tap", "edge.regular-edge", function (evt) {
+          const edge = evt.target;
+          selectedEdge = { u: edge.data("source"), v: edge.data("target") };
+
+          cy.edges(".regular-edge").removeClass("highlighted");
+          edge.addClass("highlighted");
+
+          const rp = evt.renderedPosition;
+          showPopover(rp.x, rp.y, selectedEdge);
+        });
+
+        // Clic sur le fond → ferme le popover
+        cy.on("tap", function (evt) {
+          if (evt.target === cy) closePopover();
+        });
+      }
+
+      // ── Popover ──────────────────────────────────────────────────────────────────
+      function showPopover(px, py, edge) {
+        const pop = document.getElementById("popover");
+        document.getElementById("pop-title").textContent =
+          `Arête ${edge.u} — ${edge.v}`;
+        document.getElementById("lbl-u").textContent = edge.u;
+        document.getElementById("lbl-v").textContent = edge.v;
+        document.getElementById("med-id").value = nextMedId;
+        document.getElementById("dist-u").value = 500;
+        document.getElementById("val-u").textContent = 500;
+        document.getElementById("dist-v").value = 500;
+        document.getElementById("val-v").textContent = 500;
+
+        const popW = 270,
+          popH = 215,
+          margin = 8;
+        const W = window.innerWidth,
+          H = window.innerHeight;
+        let left = px + 14;
+        let top = py - popH / 2;
+        if (left + popW > W - margin) left = px - popW - 14;
+        if (top < margin) top = margin;
+        if (top + popH > H - margin) top = H - popH - margin;
+
+        pop.style.left = left + "px";
+        pop.style.top = top + "px";
+        pop.classList.add("visible");
+      }
+
+      function closePopover() {
+        document.getElementById("popover").classList.remove("visible");
+        if (cy) cy.edges(".regular-edge").removeClass("highlighted");
+        selectedEdge = null;
+      }
+
+      document.getElementById("btn-ok").addEventListener("click", function () {
+        if (!selectedEdge) return;
+        Streamlit.setComponentValue({
+          action: "add_medication",
+          id: parseInt(document.getElementById("med-id").value),
+          u: parseInt(selectedEdge.u),
+          v: parseInt(selectedEdge.v),
+          dist_u: parseInt(document.getElementById("dist-u").value),
+          dist_v: parseInt(document.getElementById("dist-v").value),
+          ts: Date.now(),
+        });
+        closePopover();
+      });
+
+      document.getElementById("btn-no").addEventListener("click", closePopover);
+    </script>
+  </body>
+</html>

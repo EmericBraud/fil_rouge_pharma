@@ -110,42 +110,62 @@ def generate_anim_file(meds, order_ids):
     from matplotlib.animation import FuncAnimation
     import tempfile
 
-    # --- Création du graphe et positions ---
+    # Offset pour éviter les collisions d'IDs entre nodes graphe et nodes médicaments
+    OFFSET = 35
+
+    # --- Création du graphe de base avec poids euclidiens ---
+    def euclidean(a, b, pos):
+        return ((pos[a][0] - pos[b][0]) ** 2 + (pos[a][1] - pos[b][1]) ** 2) ** 0.5
+
     G = nx.Graph()
-    G.add_edges_from(EDGES)
-    current_pos = POS.copy()  # positions des nodes
-    offset = 35  # pour les IDs des nodes "médicaments" dans le graphe
+    for u, v in EDGES:
+        G.add_edge(u, v, weight=euclidean(u, v, POS))
+    current_pos = POS.copy()
     red_nodes = []
 
-    # --- Ajouter les médicaments comme nodes ---
+    # --- Grouper les médicaments par arête (u, v) ---
+    # On normalise la clé pour que (u,v) et (v,u) soient la même arête
+    from collections import defaultdict
+
+    edge_to_meds = defaultdict(list)
     for m in meds:
-        new_id = m["id"] + offset
-        u, v = m["u"], m["v"]
-        du, dv = m["dist_u"], m["dist_v"]
+        key = (min(m["u"], m["v"]), max(m["u"], m["v"]))
+        edge_to_meds[key].append(m)
 
-        # Position pondérée le long de l'arête
-        pu, pv = current_pos[u], current_pos[v]
-        new_x = (dv * pu[0] + du * pv[0]) / (du + dv)
-        new_y = (dv * pu[1] + du * pv[1]) / (du + dv)
-        current_pos[new_id] = (new_x, new_y)
-        red_nodes.append(new_id)
+    # --- Insérer les médicaments dans le graphe, arête par arête ---
+    for (u, v), meds_on_edge in edge_to_meds.items():
+        # Trier par distance depuis u (dist_u croissant)
+        sorted_meds = sorted(meds_on_edge, key=lambda m: m["dist_u"])
 
-        # Modifier le graphe : remplacer l'arête u-v par u-med-v
-        G.add_edge(u, new_id)
-        G.add_edge(new_id, v)
+        # Calculer les positions des nodes médicaments
+        pu, pv = POS[u], POS[v]
+        for m in sorted_meds:
+            new_id = m["id"] + OFFSET
+            du, dv = m["dist_u"], m["dist_v"]
+            new_x = (dv * pu[0] + du * pv[0]) / (du + dv)
+            new_y = (dv * pu[1] + du * pv[1]) / (du + dv)
+            current_pos[new_id] = (new_x, new_y)
+            red_nodes.append(new_id)
+
+        # Construire la chaîne : u — med_0 — med_1 — ... — med_n — v
+        # en supprimant l'arête u-v originale
         if G.has_edge(u, v):
             G.remove_edge(u, v)
 
-    # --- Déterminer le chemin complet ---
-    points = [35] + [oid + offset for oid in order_ids] + [0]
+        chain = [u] + [m["id"] + OFFSET for m in sorted_meds] + [v]
+        for a, b in zip(chain, chain[1:]):
+            G.add_edge(a, b, weight=euclidean(a, b, current_pos))
+
+    # --- Déterminer le chemin complet : START(35) → meds dans order_ids → END(0) ---
+    points = [35] + [oid + OFFSET for oid in order_ids] + [0]
     full_path = []
     for i in range(len(points) - 1):
         try:
-            path = nx.shortest_path(G, points[i], points[i + 1])
+            path = nx.shortest_path(G, points[i], points[i + 1], weight="weight")
             if i == 0:
                 full_path.extend(path)
             else:
-                full_path.extend(path[1:])
+                full_path.extend(path[1:])  # évite les doublons de nœud jonction
         except nx.NetworkXNoPath:
             pass
 
@@ -157,7 +177,6 @@ def generate_anim_file(meds, order_ids):
 
     def update(frame):
         ax.clear()
-        # Couleur des nodes
         colors = [
             "limegreen" if n in [0, 35] else "red" if n in red_nodes else "lightgray"
             for n in G.nodes()
@@ -173,7 +192,7 @@ def generate_anim_file(meds, order_ids):
             edge_color="#AAAAAA",
         )
 
-        # Dessiner le chemin parcouru en bleu
+        # Chemin parcouru en bleu
         if frame > 0:
             edges_path = list(zip(full_path[: frame + 1], full_path[1 : frame + 1]))
             nx.draw_networkx_edges(
@@ -185,7 +204,7 @@ def generate_anim_file(meds, order_ids):
                 width=2,
             )
 
-        # Node courant en orange
+        # Position courante en orange
         nx.draw_networkx_nodes(
             G,
             current_pos,
@@ -195,10 +214,8 @@ def generate_anim_file(meds, order_ids):
             node_shape="p",
             node_size=500,
         )
-
         ax.axis("off")
 
-    # --- Animation ---
     ani = FuncAnimation(fig, update, frames=len(full_path), interval=300)
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".gif")
     ani.save(tmp.name, writer="pillow")
