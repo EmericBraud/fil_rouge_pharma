@@ -1,213 +1,241 @@
-import matplotlib.pyplot as plt
+import streamlit as st
 import networkx as nx
+import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-import json
+import streamlit_cytoscape as st_cyto
+import tempfile
+
+from data_file import EDGES, POS, generate_anim_file
+
+st.set_page_config(page_title="Pharma Flow Optimizer", layout="wide")
+if "medications" not in st.session_state:
+    st.session_state.medications = []
+if "cytoscape_key" not in st.session_state:
+    st.session_state.cytoscape_key = 0
 
 
-def generer_video_trajet(ordre_passage_json, nom_fichier="trajet_agent.mp4"):
-    """
-    Prend une liste d'IDs de médicaments et génère une vidéo du trajet.
-    """
+# --- UI ---
+st.title("🧪 Pharma Path Interactive Optimizer")
+col1, col2 = st.columns([2, 1])
 
-    # 1. INITIALISATION DU GRAPHE
-    G = nx.Graph()
+with col2:
+    st.subheader("📦 Ajouter un Médicament")
+    with st.form("add_med"):
+        m_id = st.number_input(
+            "ID Médicament", min_value=1, value=len(st.session_state.medications) + 1
+        )
+        edge_choice = st.selectbox(
+            "Emplacement (Arête)", [f"{e[0]}-{e[1]}" for e in EDGES]
+        )
+        u_val, v_val = map(int, edge_choice.split("-"))
+        d_u = st.slider("Distance de U", 10, 1000, 500)
+        d_v = st.slider("Distance de V", 10, 1000, 500)
+        if st.form_submit_button("Ajouter au Graph"):
+            st.session_state.medications.append(
+                {"id": m_id, "u": u_val, "v": v_val, "dist_u": d_u, "dist_v": d_v}
+            )
+            st.session_state.cytoscape_key += 1
+            st.rerun()
 
-    # Données JSON des médicaments (POI)
-    data_json = [
-        {"id": 1, "u": 11, "v": 12, "dist_u": 190, "dist_v": 1700},
-        {"id": 2, "u": 5, "v": 6, "dist_u": 360, "dist_v": 800},
-        {"id": 3, "u": 23, "v": 24, "dist_u": 800, "dist_v": 200},
-        {"id": 4, "u": 21, "v": 22, "dist_u": 800, "dist_v": 200},
-        {"id": 5, "u": 1, "v": 2, "dist_u": 860, "dist_v": 300},
-        {"id": 6, "u": 33, "v": 34, "dist_u": 500, "dist_v": 500},
-        {"id": 7, "u": 3, "v": 4, "dist_u": 660, "dist_v": 400},
-    ]
+    if st.session_state.medications:
+        st.divider()
+        st.subheader("📋 Liste")
+        for m in st.session_state.medications:
+            st.text(f"Med {m['id']} (Arête {m['u']}-{m['v']})")
+        if st.button("🗑️ Vider tout"):
+            st.session_state.medications = []
+            st.session_state.cytoscape_key += 1
+            st.rerun()
 
-    # 2. POSITIONS ET ARÊTES (Statiques)
-    pos = {
-        1: (0, 5),
-        2: (0, 2),
-        3: (1, 5),
-        4: (1, 2),
-        5: (2, 5),
-        6: (2, 2),
-        7: (3, 5),
-        8: (3, 2),
-        9: (3, -2),
-        10: (3, 8),
-        35: (3.75, 9.5),
-        11: (4.5, 8),
-        12: (4.5, -2),
-        0: (6, 9.5),
-        33: (6, 8),
-        31: (6, 7),
-        29: (6, 6),
-        27: (6, 5),
-        25: (6, 4),
-        23: (6, 3),
-        21: (6, 2),
-        19: (6, 1),
-        17: (6, 0),
-        15: (6, -1),
-        13: (6, -2),
-        34: (8.5, 8),
-        32: (8.5, 7),
-        30: (8.5, 6),
-        28: (8.5, 5),
-        26: (8.5, 4),
-        24: (8.5, 3),
-        22: (8.5, 2),
-        20: (8.5, 1),
-        18: (8.5, 0),
-        16: (8.5, -1),
-        14: (8.5, -2),
+with col1:
+    st.subheader("🗺️ Visualisation Interactive")
+    nodes = []
+
+    # Nœuds principaux
+    for n in POS:
+        is_special = n in [0, 35]
+        nodes.append(
+            {
+                "data": {
+                    "id": str(n),
+                    "label": str(n),
+                    "bg_color": "#32CD32" if is_special else "#FFFFFF",
+                    "node_shape": "circle",
+                    "node_color": "#000000",
+                    "node_width": 35,
+                    "node_height": 35,
+                    "font_size": 12,
+                },
+                "position": {"x": POS[n][0] * 80, "y": -POS[n][1] * 80},
+                "classes": "special-node" if is_special else "regular-node",
+                "selectable": False,
+                "grabbable": False,
+            }
+        )
+
+    # Arêtes principales
+    edges = []
+    for u, v in EDGES:
+        edges.append(
+            {
+                "data": {"source": str(u), "target": str(v), "id": f"e{u}-{v}"},
+                "classes": "regular-edge",
+                "selectable": False,
+                "grabbable": False,
+            }
+        )
+
+    # Nœuds médicaments et leurs arêtes
+    for m in st.session_state.medications:
+        m_node = f"M{m['id']}"
+        pu, pv = POS[m["u"]], POS[m["v"]]
+        mx = (m["dist_v"] * pu[0] + m["dist_u"] * pv[0]) / (m["dist_u"] + m["dist_v"])
+        my = (m["dist_v"] * pu[1] + m["dist_u"] * pv[1]) / (m["dist_u"] + m["dist_v"])
+
+        # Nœud médicament
+        nodes.append(
+            {
+                "data": {"id": m_node, "label": str(m["id"])},
+                "position": {"x": mx * 80, "y": -my * 80},
+                "classes": "med-node",
+                "selectable": False,
+                "grabbable": False,
+            }
+        )
+
+        # Arêtes vers U et V
+        edges.append(
+            {
+                "data": {
+                    "source": str(m["u"]),
+                    "target": m_node,
+                    "id": f"e{m['u']}-{m_node}",
+                },
+                "classes": "med-edge",
+                "selectable": False,
+                "grabbable": False,
+            }
+        )
+        edges.append(
+            {
+                "data": {
+                    "source": str(m["v"]),
+                    "target": m_node,
+                    "id": f"e{m['v']}-{m_node}",
+                },
+                "classes": "med-edge",
+                "selectable": False,
+                "grabbable": False,
+            }
+        )
+
+    # Configuration du layout Cytoscape
+    cyto_config = {
+        "name": "preset",
+        "fit": True,
+        "padding": 30,
+        "zoom": 1,
+        "animate": False,
     }
 
-    edges = [
-        (1, 2),
-        (1, 3),
-        (3, 4),
-        (3, 5),
-        (5, 7),
-        (7, 8),
-        (2, 4),
-        (4, 6),
-        (6, 8),
-        (8, 9),
-        (5, 6),
-        (7, 10),
-        (10, 35),
-        (35, 11),
-        (11, 12),
-        (9, 12),
-        (0, 33),
-        (11, 33),
-        (12, 13),
-        (33, 31),
-        (31, 29),
-        (29, 27),
-        (27, 25),
-        (25, 23),
-        (23, 21),
-        (21, 19),
-        (19, 17),
-        (17, 15),
-        (15, 13),
-        (34, 32),
-        (32, 30),
-        (30, 28),
-        (28, 26),
-        (26, 24),
-        (24, 22),
-        (22, 20),
-        (20, 18),
-        (18, 16),
-        (16, 14),
-        (33, 34),
-        (31, 32),
-        (29, 30),
-        (27, 28),
-        (25, 26),
-        (23, 24),
-        (21, 22),
-        (19, 20),
-        (17, 18),
-        (15, 16),
-        (13, 14),
-        (0, 35),
-        (11, 0),
-        (10, 11),
-    ]
-    G.add_edges_from(edges)
-
-    # 3. INSERTION POI (Nœuds rouges)
-    offset = 35
-    red_nodes = []
-    for item in data_json:
-        new_id = item["id"] + offset
-        u, v = item["u"], item["v"]
-        du, dv = item["dist_u"], item["dist_v"]
-        pu, pv = pos[u], pos[v]
-        new_x = (dv * pu[0] + du * pv[0]) / (du + dv)
-        new_y = (dv * pu[1] + du * pv[1]) / (du + dv)
-        pos[new_id] = (new_x, new_y)
-        red_nodes.append(new_id)
-        G.add_edge(u, new_id)
-        G.add_edge(new_id, v)
-        if G.has_edge(u, v):
-            G.remove_edge(u, v)
-
-    # 4. CALCUL DE L'ITINÉRAIRE FLUIDE
-    # On ajoute l'entrée (35) et la caisse (0)
-    points_de_passage = [35] + [i + offset for i in ordre_passage_json] + [0]
-    chemin_complet = []
-    for i in range(len(points_de_passage) - 1):
-        sub_path = nx.shortest_path(G, points_de_passage[i], points_de_passage[i + 1])
-        chemin_complet.extend(sub_path if i == 0 else sub_path[1:])
-
-    # 5. DESSIN ET ANIMATION
-    node_colors = [
-        "limegreen" if n in [0, 35] else "red" if n in red_nodes else "white"
-        for n in G.nodes()
+    # Stylesheet Cytoscape — styles directs sans data(style.xxx)
+    stylesheet = [
+        # Nœuds normaux (blancs)
+        {
+            "selector": "node.regular-node",
+            "style": {
+                "background-color": "#FFFFFF",
+                "border-width": 2,
+                "border-color": "#000000",
+                "width": 35,
+                "height": 35,
+                "label": "data(label)",
+                "text-valign": "center",
+                "text-halign": "center",
+                "font-size": 12,
+                "color": "#000000",
+                "shape": "ellipse",
+            },
+        },
+        # Nœuds spéciaux (verts : départ/arrivée)
+        {
+            "selector": "node.special-node",
+            "style": {
+                "background-color": "#32CD32",
+                "border-width": 2,
+                "border-color": "#000000",
+                "width": 35,
+                "height": 35,
+                "label": "data(label)",
+                "text-valign": "center",
+                "text-halign": "center",
+                "font-size": 12,
+                "color": "#000000",
+                "shape": "ellipse",
+            },
+        },
+        # Nœuds médicaments (rouges, carrés)
+        {
+            "selector": "node.med-node",
+            "style": {
+                "background-color": "#FF0000",
+                "border-width": 2,
+                "border-color": "#000000",
+                "width": 25,
+                "height": 25,
+                "label": "data(label)",
+                "text-valign": "center",
+                "text-halign": "center",
+                "font-size": 10,
+                "color": "#FFFFFF",
+                "shape": "rectangle",
+            },
+        },
+        # Arêtes normales (grises)
+        {
+            "selector": "edge.regular-edge",
+            "style": {
+                "line-color": "#444444",
+                "width": 2,
+                "curve-style": "bezier",
+                "target-arrow-shape": "none",
+            },
+        },
+        # Arêtes médicaments (rouges)
+        {
+            "selector": "edge.med-edge",
+            "style": {
+                "line-color": "#FF0000",
+                "width": 3,
+                "curve-style": "bezier",
+                "target-arrow-shape": "none",
+            },
+        },
     ]
 
-    fig, ax = plt.subplots(figsize=(10, 12))
-
-    def update(frame):
-        ax.clear()
-        nx.draw(
-            G,
-            pos,
-            ax=ax,
-            with_labels=True,
-            node_color=node_colors,
-            node_size=600,
-            edgecolors="black",
-            linewidths=1.2,
-            font_size=8,
-            edge_color="lightgray",
-        )
-
-        if frame > 0:
-            path_so_far = chemin_complet[: frame + 1]
-            edges_so_far = list(zip(path_so_far, path_so_far[1:]))
-            nx.draw_networkx_edges(
-                G, pos, ax=ax, edgelist=edges_so_far, edge_color="royalblue", width=3
-            )
-
-        curr = chemin_complet[frame]
-        nx.draw_networkx_nodes(
-            G,
-            pos,
-            ax=ax,
-            nodelist=[curr],
-            node_shape="p",
-            node_size=1000,
-            node_color="orange",
-        )
-        ax.set_title(
-            f"Animation Trajet - Étape {frame}/{len(chemin_complet)-1} (Nœud {curr})"
-        )
-        ax.axis("off")
-
-    ani = FuncAnimation(
-        fig, update, frames=len(chemin_complet), interval=400, repeat=False
+    # Affichage avec une clé unique pour forcer le rafraîchissement
+    st_cyto.streamlit_cytoscape(
+        elements=nodes + edges,
+        layout=cyto_config,
+        stylesheet=stylesheet,
+        height="600px",
+        key=f"graph_view_{st.session_state.cytoscape_key}",
+        user_layout=False,
     )
 
-    # Sauvegarde de la vidéo
-    print(f"Génération de la vidéo : {nom_fichier}...")
-    try:
-        # Essayer d'enregistrer en MP4
-        ani.save(nom_fichier, writer="ffmpeg", fps=2)
-        print("Vidéo enregistrée avec succès.")
-    except Exception as e:
-        print(f"Erreur avec ffmpeg : {e}")
-        print("Tentative de sauvegarde en GIF...")
-        ani.save(nom_fichier.replace(".mp4", ".gif"), writer="pillow", fps=2)
-
-    plt.close()  # Ferme la fenêtre pour éviter l'affichage si on ne veut que le fichier
-
-
-# --- EXEMPLE D'UTILISATION ---
-mon_ordre = [1, 2, 7, 5, 4, 3, 6]
-generer_video_trajet(mon_ordre, "mon_parcours_pharmacie.mp4")
+if st.button("🚀 Optimiser & Générer Vidéo"):
+    if not st.session_state.medications:
+        st.error("Ajoutez au moins un médicament !")
+    else:
+        with st.spinner("Calcul du trajet..."):
+            ordre = [m["id"] for m in st.session_state.medications]
+            video_path = generate_anim_file(st.session_state.medications, ordre)
+            if video_path:
+                st.subheader("📽️ Simulation")
+                st.image(video_path)
+                with open(video_path, "rb") as f:
+                    st.download_button(
+                        "💾 Télécharger l'animation", f, "trajet_pharma.gif"
+                    )
+            else:
+                st.error("Erreur lors du calcul du chemin")

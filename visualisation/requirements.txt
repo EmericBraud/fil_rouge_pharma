@@ -1,1 +1,8 @@
 networkx
+streamlit
+ipycytoscape
+streamlit_cytoscape
+st_cytoscape
+fastapi
+pydantic
+uvicorn
